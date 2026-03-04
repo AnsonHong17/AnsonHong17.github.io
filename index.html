@@ -66,6 +66,7 @@
           <span class="switchLabel">Suara</span>
         </label>
 
+        <button id="teacherBtn" class="btn ghost" type="button" title="Panduan untuk guru/kaunselor">👩‍🏫 Guru</button>
         <button id="resetBtn" class="btn ghost" type="button">Mula Semula</button>
       </div>
     </header>
@@ -73,7 +74,7 @@
     <section class="panel">
       <div class="metaRow">
         <div class="pill" id="modePill">Mode: Normal</div>
-        <div class="pill" id="stepPill">Langkah: 0/7</div>
+        <div class="pill" id="stepPill">Langkah: 0/10</div>
         <div class="pill" id="hintPill">Tip: Pilih butang</div>
       </div>
 
@@ -149,7 +150,7 @@
     </section>
 
     <form id="form" class="inputBar">
-      <input id="input" placeholder="Taip di sini…" autocomplete="off" />
+      <textarea id="input" rows="1" placeholder="Taip di sini… (Enter=hantar, Shift+Enter=baris baru)"></textarea>
       <button class="btn" type="submit">Hantar</button>
     </form>
 
@@ -159,6 +160,7 @@
       </small>
     </footer>
 
+    <!-- Summary Modal -->
     <div id="summaryModal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modalCard">
         <div class="modalTop">
@@ -168,7 +170,23 @@
         <div id="summaryContent" class="summaryContent"></div>
         <div class="modalActions">
           <button id="copySummary" class="btn ghost" type="button">Copy Ringkasan</button>
+          <button id="exportStats" class="btn ghost" type="button">Copy Statistik (tanpa cerita)</button>
           <button id="newStudent" class="btn" type="button">Sesi Murid Seterusnya</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Teacher Modal -->
+    <div id="teacherModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modalCard">
+        <div class="modalTop">
+          <div class="modalH">👩‍🏫 Panduan Guru / Kaunselor</div>
+          <button id="closeTeacher" class="iconBtn" type="button">✕</button>
+        </div>
+        <div class="summaryContent" id="teacherContent"></div>
+        <div class="modalActions">
+          <button id="copyTeacher" class="btn ghost" type="button">Copy Panduan</button>
+          <button id="closeTeacher2" class="btn" type="button">Tutup</button>
         </div>
       </div>
     </div>
@@ -177,5 +195,4 @@
 
   <script src="app.js"></script>
 </body>
-
 </html>

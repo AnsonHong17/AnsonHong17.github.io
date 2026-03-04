@@ -25,10 +25,25 @@ const summaryContent = document.getElementById("summaryContent");
 const closeSummary = document.getElementById("closeSummary");
 const copySummary = document.getElementById("copySummary");
 const newStudent = document.getElementById("newStudent");
+const exportStats = document.getElementById("exportStats");
+
+const teacherBtn = document.getElementById("teacherBtn");
+const teacherModal = document.getElementById("teacherModal");
+const teacherContent = document.getElementById("teacherContent");
+const closeTeacher = document.getElementById("closeTeacher");
+const closeTeacher2 = document.getElementById("closeTeacher2");
+const copyTeacher = document.getElementById("copyTeacher");
 
 let kioskMode = false;
 let longMode = true;
 let ttsEnabled = false;
+
+// ====== Input Source ======
+const INPUT_SOURCE = { TYPED: "typed", OPTION: "option" };
+
+// ====== Local Storage Keys ======
+const LS_FAVS = "cbt_favs_v1";   // 收藏的方法
+const LS_LOGS = "cbt_logs_v1";   // 统计（不保存叙述）
 
 // ====== Utils ======
 function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
@@ -44,13 +59,49 @@ function isNumberLike(x){
 }
 function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
-function longWrap(parts){
-  const clean = parts.filter(Boolean);
-  if (longMode) return clean.join("\n\n");
-  return clean.join(" ");
+// typed 输入 → 更长更共情；option 点击 → 看 toggle/kiosk
+function shouldBeLong(){
+  if (kioskMode) return false;
+  if (state?.lastInputSource === INPUT_SOURCE.TYPED) return true;
+  return !!longMode;
+}
+function wrap(parts){
+  const clean = (parts || []).filter(Boolean);
+  return shouldBeLong() ? clean.join("\n\n") : clean.join(" ");
 }
 
-// ====== TTS (Web Speech API) ======
+function loadJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  }catch(e){
+    return fallback;
+  }
+}
+function saveJSON(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }catch(e){}
+}
+function addFavorite(name){
+  const favs = loadJSON(LS_FAVS, []);
+  if (!favs.includes(name)) favs.push(name);
+  saveJSON(LS_FAVS, favs);
+}
+function removeFavorite(name){
+  const favs = loadJSON(LS_FAVS, []);
+  saveJSON(LS_FAVS, favs.filter(x => x !== name));
+}
+function getFavorites(){
+  return loadJSON(LS_FAVS, []);
+}
+function addLog(record){
+  const logs = loadJSON(LS_LOGS, []);
+  logs.push(record);
+  // 只保留最近 200 条
+  saveJSON(LS_LOGS, logs.slice(-200));
+}
+
+// ====== TTS ======
 function canTTS(){
   return typeof window !== "undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
 }
@@ -59,14 +110,14 @@ function speak(text){
   try{
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ms-MY"; // BM (fallback kalau tak ada, browser akan pilih dekat)
+    u.lang = "ms-MY";
     u.rate = 1.0;
     u.pitch = 1.0;
     window.speechSynthesis.speak(u);
   } catch(e){}
 }
 
-// ====== Message UI (avatar + speaker button) ======
+// ====== UI Messages ======
 function makeAvatar(who){
   const a = document.createElement("div");
   a.className = `avatar ${who === "bot" ? "botA" : "userA"}`;
@@ -77,12 +128,10 @@ function makeAvatar(who){
 function addMsg(text, who="bot", tag=null) {
   const row = document.createElement("div");
   row.className = `msg ${who}`;
-
-  // avatar
   row.appendChild(makeAvatar(who));
 
-  const wrap = document.createElement("div");
-  wrap.className = "bubbleWrap";
+  const wrapEl = document.createElement("div");
+  wrapEl.className = "bubbleWrap";
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
@@ -98,9 +147,8 @@ function addMsg(text, who="bot", tag=null) {
   content.textContent = text;
   bubble.appendChild(content);
 
-  wrap.appendChild(bubble);
+  wrapEl.appendChild(bubble);
 
-  // speaker button (for bot only)
   if (who === "bot"){
     const actions = document.createElement("div");
     actions.className = "bubbleActions";
@@ -112,26 +160,24 @@ function addMsg(text, who="bot", tag=null) {
     spk.addEventListener("click", () => speak(text));
     actions.appendChild(spk);
 
-    wrap.appendChild(actions);
+    wrapEl.appendChild(actions);
   }
 
-  row.appendChild(wrap);
-
+  row.appendChild(wrapEl);
   chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
 
   if (who === "bot") speak(text);
 }
 
-// typing indicator 3-dot
 function botTyping(delay=380){
   return new Promise(resolve => {
     const row = document.createElement("div");
     row.className = "msg bot";
     row.appendChild(makeAvatar("bot"));
 
-    const wrap = document.createElement("div");
-    wrap.className = "bubbleWrap";
+    const wrapEl = document.createElement("div");
+    wrapEl.className = "bubbleWrap";
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
@@ -141,8 +187,8 @@ function botTyping(delay=380){
     typing.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span>`;
     bubble.appendChild(typing);
 
-    wrap.appendChild(bubble);
-    row.appendChild(wrap);
+    wrapEl.appendChild(bubble);
+    row.appendChild(wrapEl);
     chat.appendChild(row);
     chat.scrollTop = chat.scrollHeight;
 
@@ -158,7 +204,7 @@ async function botSay(text, tag=null, delay=380){
   addMsg(text, "bot", tag);
 }
 
-// ====== Empathy engine ======
+// ====== Empathy ======
 function reflectEmotion(emotion){
   const e = (emotion||"").trim();
   if (!e) return "";
@@ -222,7 +268,7 @@ function handleIDontKnow(text){
   );
 }
 
-// ====== Situation tone & detect emotion(s) from situation ======
+// ====== Situation detect ======
 function situationTone(situation){
   const t = normalize(situation);
   const neutral = ["biasa-biasa","biasa je","ok je","okay je","takde apa","tak ada apa","nothing","saja","entah","normal je","macam biasa","tidak apa","tak apa"];
@@ -244,8 +290,6 @@ function emotionGroup(emotion){
   if (e.includes("neutral") || e.includes("biasa")) return "neutral";
   return "unknown";
 }
-
-// detect top 1–2 emotions from situation
 function detectEmotionsFromSituation(situation, scenarioKey){
   const t = normalize(situation);
 
@@ -264,7 +308,6 @@ function detectEmotionsFromSituation(situation, scenarioKey){
   if (kAng.some(w=>t.includes(w))) add("Marah", 3);
   if (kShm.some(w=>t.includes(w))) add("Malu", 3);
 
-  // scenario priors
   if (scenarioKey === "bully"){ add("Malu", 2); add("Takut", 2); }
   if (scenarioKey === "exam"){ add("Risau", 2); }
   if (scenarioKey === "friend"){ add("Sedih", 2); }
@@ -281,7 +324,6 @@ function detectEmotionsFromSituation(situation, scenarioKey){
   if (sorted[1] && sorted[1][1] >= 3) out.push({ emotion: sorted[1][0], score: sorted[1][1] });
   return out;
 }
-
 function needsConsistencyCheck(currentEmotion, situation){
   const eg = emotionGroup(currentEmotion);
   const st = situationTone(situation);
@@ -313,64 +355,24 @@ function empathyExpandSituation(emotion, situation, scenarioKey){
     `Saya bersama kamu. ${reflectEmotion(emo)}`
   ]);
 
-  let hypo = [];
-  if (scenarioKey === "friend"){
-    hypo = [
-      "Bila kawan tak nak main, memang pedih sebab kita rasa macam ditolak.",
-      "Kadang-kadang otak terus fikir: ‘mereka tak suka saya’ atau ‘saya tak penting’.",
-      "Mungkin kamu juga rasa sunyi—betul tak?"
-    ];
-  } else if (scenarioKey === "bully"){
-    hypo = [
-      "Kalau ada orang ejek/buli, memang boleh rasa malu atau takut.",
-      "Kadang-kadang otak terus fikir ‘aku sorang je’ atau ‘tiada siapa tolong’.",
-      "Saya nak kamu tahu: itu bukan salah kamu."
-    ];
-  } else if (scenarioKey === "exam"){
-    hypo = [
-      "Bila pasal exam, ramai murid rasa tekanan sebab takut salah atau takut mengecewakan orang.",
-      "Kadang-kadang otak terus bayang ‘kalau gagal macam mana?’ walaupun kita sedang cuba.",
-      "Kamu tak keseorangan—ini sangat biasa."
-    ];
-  } else if (scenarioKey === "teacher"){
-    hypo = [
-      "Bila dimarah, kita boleh rasa takut atau rasa bersalah yang kuat.",
-      "Kadang-kadang otak terus fikir ‘cikgu benci saya’, walaupun cikgu mungkin marah pada perbuatan.",
-      "Kita boleh cari cara baiki pelan-pelan."
-    ];
-  } else if (scenarioKey === "family"){
-    hypo = [
-      "Bila di rumah ada tekanan, memang boleh rasa serabut dan sedih/risau.",
-      "Kadang-kadang kita rasa ‘saya tak didengar’ atau ‘saya yang salah’.",
-      "Terima kasih sebab berani cerita—itu bukan mudah."
-    ];
-  } else {
-    hypo = [
-      "Bila sesuatu buat kita tak selesa, otak kadang-kadang buat andaian yang menakutkan.",
-      "Perasaan itu valid—kita cuba faham pelan-pelan.",
-      "Kamu tak perlu tanggung sorang-sorang."
-    ];
-  }
-
   const checkIn = pick([
     "Saya tangkap macam itu—betul tak lebih kurang?",
     "Kalau saya tersalah, kamu boleh betulkan saya ya.",
     "Adakah itu hampir sama dengan apa yang kamu rasa?"
   ]);
 
-  const extra = longMode ? pick([
+  const extra = shouldBeLong() ? pick([
     "Kita tak perlu cepat-cepat. Saya akan dengar kamu perlahan-lahan.",
     "Kamu tetap murid yang berharga walaupun sedang susah.",
     "Perasaan kamu ada sebab—dan itu penting."
   ]) : "";
 
-  return [intro, `Situasi: "${sShort}"`, bodyFeel, pick(hypo), longMode?pick(hypo):"", extra, checkIn]
-    .filter(Boolean).join("\n");
+  return [intro, `Situasi: "${sShort}"`, bodyFeel, extra, checkIn].filter(Boolean).join("\n");
 }
 
 // ====== Safety ======
-const RED_WORDS = ["bunuh","bunuh diri","nak mati","mati","cedera diri","potong","gantung","cabuli","rogol","dera","ugut bunuh"];
-const ORANGE_WORDS = ["takut balik rumah","selalu kena pukul","tak boleh tidur","mimpi buruk","panic","cemas teruk","dibuli setiap hari","tak nak hidup","benci hidup"];
+const RED_WORDS = ["bunuh","bunuh diri","nak mati","mati","cedera diri","potong","gantung","cabuli","rogol","dera","ugut bunuh","nak sakitkan diri","nak cederakan diri"];
+const ORANGE_WORDS = ["takut balik rumah","selalu kena pukul","tak boleh tidur","mimpi buruk","panic","cemas teruk","dibuli setiap hari","tak nak hidup","benci hidup","tak selamat"];
 
 function safetyLevelFromText(text){
   const t = normalize(text);
@@ -380,17 +382,17 @@ function safetyLevelFromText(text){
 }
 function safetyResponse(level){
   if (level === "red"){
-    return { tag:{kind:"danger",text:"Keselamatan dulu"}, msg: longWrap([
+    return { tag:{kind:"danger",text:"Keselamatan dulu"}, msg: wrap([
       "Saya risau tentang keselamatan kamu.",
       "Tolong jumpa guru / ibu bapa / penjaga atau orang dewasa dipercayai SEKARANG.",
-      "Jika kecemasan, hubungi talian kecemasan tempatan."
+      "Jika ada bahaya segera, minta orang dewasa hubungi talian kecemasan tempatan."
     ])};
   }
   if (level === "orange"){
-    return { tag:{kind:"warn",text:"Perlu bantuan orang dewasa"}, msg: longWrap([
+    return { tag:{kind:"warn",text:"Perlu bantuan orang dewasa"}, msg: wrap([
       "Terima kasih kerana beritahu. Ini nampak berat untuk tanggung seorang diri.",
       "Saya cadangkan kamu bercakap dengan guru / kaunselor / ibu bapa.",
-      "Jika mahu, tekan butang “Ayat untuk minta tolong”."
+      "Kalau mahu, tekan butang untuk ayat minta tolong."
     ])};
   }
   return null;
@@ -464,7 +466,7 @@ function reframeSuggestions(distortion, thought){
   }
 }
 
-// ====== Guided coping steps (INI yang anda minta) ======
+// ====== Guides ======
 const GUIDES = {
   "Nafas 4-4-4 × 5 kali": [
     "🫁 **Nafas 4-4-4 (ulang 5 kali)**",
@@ -523,7 +525,7 @@ const GUIDES = {
   ]
 };
 
-// ====== Toolbox options ======
+// ====== Toolbox ======
 const TOOLBOX = {
   Risau: [
     { label:"🫁 Nafas 4-4-4 × 5", value:"Nafas 4-4-4 × 5 kali" },
@@ -561,7 +563,6 @@ const TOOLBOX = {
     { label:"🫁 Nafas 4-4-4 × 5", value:"Nafas 4-4-4 × 5 kali" }
   ]
 };
-
 function toolboxFor(emotion){
   const e = normalize(emotion);
   if (e.includes("risau")) return TOOLBOX.Risau;
@@ -609,18 +610,21 @@ const SCENARIOS = {
   ]}
 };
 
-// ====== State / Steps ======
+// ====== Steps ======
 /*
 0 pilih scenario
 1 emosi
 2 intensity (0-10)
-3 calming if high intensity (>=8)
-4 situasi + semak emosi (detect emosi dari situasi)
+3 calming if high intensity (>=8) -> done -> step4
+4 situasi + semak emosi
 5 fikiran
-6 fikiran baru
-7 tindakan + panduan langkah + summary
+6 bukti menyokong
+7 bukti menentang
+8 skor percaya fikiran asal (0-10) + fikiran baru
+9 tindakan + panduan
+10 skor emosi selepas tindakan (0-10) + summary
 */
-const STEPS_TOTAL = 7;
+const STEPS_TOTAL = 10;
 let state;
 
 function resetState(){
@@ -630,16 +634,28 @@ function resetState(){
     scenarioKey: null,
     scenarioName: "",
     emotion: "",
-    intensity: 0,
+    intensityPre: 0,
+    intensityPost: null,
+
     situation: "",
     thought: "",
     distortion: null,
+
+    evidenceFor: "",
+    evidenceAgainst: "",
+    beliefThought: null,   // 0-10
     newThought: "",
-    action: ""
+    beliefNew: null,       // 0-10 (optional)
+
+    calmingAction: "",
+    action: "",
+
+    pendingAfterCalm: false,
+    lastInputSource: INPUT_SOURCE.OPTION
   };
 }
 
-// ====== UI ======
+// ====== UI helpers ======
 function setOptions(title, options){
   optionsTitle.textContent = title || "Pilih jawapan (atau taip):";
   optionsEl.innerHTML = "";
@@ -648,7 +664,7 @@ function setOptions(title, options){
     btn.type = "button";
     btn.className = "optBtn";
     btn.textContent = opt.label;
-    btn.addEventListener("click", () => handleUserInput(opt.value ?? opt.label));
+    btn.addEventListener("click", () => handleUserInput(opt.value ?? opt.label, INPUT_SOURCE.OPTION));
     optionsEl.appendChild(btn);
   });
 }
@@ -660,18 +676,18 @@ function setProgress(step){
 }
 function setModeUI(){
   const theme = document.body.classList.contains("dark") ? "Gelap" : "Ceria";
-  modePill.textContent = `Mode: ${kioskMode ? "Kiosk" : "Normal"} • ${longMode ? "Mendalam" : "Ringkas"} • Tema: ${theme}`;
+  const verbose = shouldBeLong() ? "Mendalam" : "Ringkas";
+  modePill.textContent = `Mode: ${kioskMode ? "Kiosk" : "Normal"} • ${verbose} • Tema: ${theme}`;
   hintPill.textContent = kioskMode ? "Tip: guna butang" : "Tip: boleh taip";
 }
 
-// ====== Theme / TTS ======
+// ====== Theme/TTS ======
 function applyTheme(){
   document.body.classList.toggle("dark", !!themeToggle?.checked);
   setModeUI();
 }
 function applyTTS(){
   ttsEnabled = !!ttsToggle?.checked;
-  // jika browser tak support, auto off
   if (ttsEnabled && !canTTS()){
     ttsEnabled = false;
     ttsToggle.checked = false;
@@ -679,11 +695,47 @@ function applyTTS(){
   }
 }
 
+// ====== Teacher modal ======
+function buildTeacherGuide(){
+  return [
+    "✅ Ayat yang membantu (pilih 1):",
+    "• “Terima kasih sebab beritahu saya.”",
+    "• “Saya dengar kamu rasa ____. Itu masuk akal.”",
+    "• “Jom kita buat 1 langkah kecil dulu.”",
+    "• “Kamu tak keseorangan. Saya ada di sini.”",
+    "",
+    "✅ Soalan lembut (elak menyalahkan):",
+    "• “Bila ini berlaku? Dengan siapa?”",
+    "• “Apa yang paling kamu risau sekarang?”",
+    "• “Apa yang akan buat kamu rasa lebih selamat?”",
+    "",
+    "❌ Elakkan ayat ini:",
+    "• “Jangan fikir macam tu.”",
+    "• “Itu perkara kecil.”",
+    "• “Kamu terlalu sensitif.”",
+    "",
+    "🚨 Bila perlu naik taraf/rujuk segera:",
+    "• Ada ancaman bahaya, dera, atau murid kata nak cederakan diri.",
+    "• Murid tidak selamat untuk pulang, atau trauma berat.",
+    "",
+    "📌 Tindakan selamat di sekolah:",
+    "• Pastikan murid tidak bersendirian.",
+    "• Hubungi kaunselor/guru disiplin/penjaga mengikut SOP sekolah."
+  ].join("\n");
+}
+function openTeacher(){
+  teacherContent.textContent = buildTeacherGuide();
+  teacherModal.classList.remove("hidden");
+}
+function closeTeacherModal(){
+  teacherModal.classList.add("hidden");
+}
+
 // ====== Help Script ======
 async function showHelpScript(){
   addMsg("Saya nak ayat untuk minta tolong", "user");
   await botSay(
-    longWrap([
+    wrap([
       "Baik. Ini ayat pendek yang kamu boleh guna (pilih satu):",
       "1) “Cikgu, saya rasa tak selamat / takut. Saya perlukan bantuan.”",
       "2) “Cikgu, saya dibuli / diejek. Boleh tolong saya?”",
@@ -699,25 +751,36 @@ async function showHelpScript(){
   ]);
 }
 
-// ====== Guided action ======
-async function runGuide(actionValue){
+// ====== Guides (with favorite) ======
+async function runGuide(actionValue, isCalming=false){
   const lines = GUIDES[actionValue];
   if (!lines) return false;
 
-  await botSay(lines.join("\n"), { kind:"info", text:"Panduan langkah" });
+  const favs = getFavorites();
+  const isFav = favs.includes(actionValue);
+
+  await botSay(lines.join("\n"), { kind:"info", text: isCalming ? "Tenangkan badan" : "Panduan langkah" });
 
   setOptions("Dah siap buat? (pilih satu)", [
     { label:"✅ Ya, saya sudah buat", value:"__done_action__" },
     { label:"🔁 Ulang panduan", value:"__repeat_action__" },
-    { label:"🗣️ Saya perlukan bantuan orang dewasa", value:"__help_script__" }
+    { label: isFav ? "⭐ Sudah disimpan" : "⭐ Simpan kaedah ini", value:"__bookmark__" },
+    { label:"🗣️ Ayat untuk minta tolong", value:"__help_script__" }
   ]);
   return true;
 }
 
-// ====== Start / Scenario ======
+// ====== Start ======
 function showScenarioPrompt(){
   scenarioArea.style.display = "block";
+
+  const favs = getFavorites();
+  const favBtn = favs.length
+    ? [{ label:`⭐ Kaedah kegemaran: ${shorten(favs[0], 22)}`, value:"__show_favs__" }]
+    : [];
+
   setOptions("Tip: pilih satu situasi di atas untuk mula.", [
+    ...favBtn,
     { label:"Saya nak mula tanpa pilih", value:"__skip_scenario__" }
   ]);
   setProgress(0);
@@ -734,7 +797,7 @@ async function scenarioSelect(key){
   setProgress(1);
 
   await botSay(
-    longWrap([
+    wrap([
       "Baik. Terima kasih sebab pilih situasi—itu membantu saya faham kamu.",
       praiseSmall(),
       `Untuk situasi "${scn.name}", kita akan buat langkah CBT yang mudah dan selamat.`,
@@ -759,14 +822,14 @@ async function start(){
   resetState();
 
   kioskMode = !!kioskToggle?.checked;
-  longMode = kioskMode ? false : !!longToggle?.checked; // kiosk auto ringkas
+  longMode = kioskMode ? false : !!longToggle?.checked;
   applyTheme();
   applyTTS();
   setModeUI();
   setProgress(0);
 
   await botSay(
-    longWrap([
+    wrap([
       "Hai 😊 Saya di sini untuk dengar kamu.",
       "Kamu penting, dan perasaan kamu juga penting.",
       "Pilih situasi untuk mula ya."
@@ -777,14 +840,35 @@ async function start(){
   showScenarioPrompt();
 }
 
-// ====== Proceed to Thought ======
+// ====== Flow helpers ======
+async function proceedToSituation(){
+  const scn = SCENARIOS[state.scenarioKey] || SCENARIOS.other;
+  state.step = 4;
+  setProgress(4);
+
+  await botSay(
+    wrap([
+      "Bagus. Badan kamu dah cuba tenang sedikit. 🌿",
+      "Sekarang kita sambung CBT dengan selamat.",
+      "Apa yang berlaku? Cerita ringkas ya."
+    ]),
+    { kind:"info", text:"Situasi" }
+  );
+
+  setOptions("Contoh jawapan:", [
+    { label: scn.example, value: scn.example },
+    { label:"Saya rasa biasa-biasa sahaja.", value:"saya rasa biasa-biasa sahaja" },
+    { label:"Saya tak tahu nak cerita.", value:"tak tahu" }
+  ]);
+}
+
 async function proceedToThought(){
   const scn = SCENARIOS[state.scenarioKey] || SCENARIOS.other;
   state.step = 5;
   setProgress(5);
 
   await botSay(
-    longWrap([
+    wrap([
       praiseSmall(),
       empathyExpandSituation(state.emotion, state.situation, state.scenarioKey),
       "",
@@ -801,14 +885,198 @@ async function proceedToThought(){
   ]);
 }
 
-// ====== Main Handler ======
-async function handleUserInput(text){
+async function askEvidenceFor(){
+  state.step = 6;
+  setProgress(6);
+  await botSay(
+    wrap([
+      "Baik. Sekarang kita semak bukti supaya fikiran kita lebih adil.",
+      "Soalan 1/2: Ada apa-apa bukti yang MENYOKONG fikiran itu? (1 ayat pun cukup)",
+      "Jika susah, boleh tulis: “tak pasti”."
+    ]),
+    { kind:"info", text:"Bukti menyokong" }
+  );
+  setOptions("Contoh ringkas:", [
+    { label:"Tak pasti", value:"tak pasti" },
+    { label:"Saya pernah gagal sebelum ini.", value:"Saya pernah gagal sebelum ini." },
+    { label:"Saya belum ulangkaji lagi.", value:"Saya belum ulangkaji lagi." }
+  ]);
+}
+
+async function askEvidenceAgainst(){
+  state.step = 7;
+  setProgress(7);
+  await botSay(
+    wrap([
+      "Soalan 2/2: Ada apa-apa bukti yang MENENTANG fikiran itu?",
+      "Contoh: pernah berjaya sebelum ini, ada yang boleh membantu, atau ada bahagian yang kamu sudah buat."
+    ]),
+    { kind:"info", text:"Bukti menentang" }
+  );
+  setOptions("Contoh ringkas:", [
+    { label:"Tak pasti", value:"tak pasti" },
+    { label:"Saya pernah dapat betul beberapa soalan.", value:"Saya pernah dapat betul beberapa soalan." },
+    { label:"Saya boleh minta cikgu ajar 1 soalan.", value:"Saya boleh minta cikgu ajar 1 soalan." }
+  ]);
+}
+
+async function askBeliefAndNewThought(){
+  state.step = 8;
+  setProgress(8);
+
+  await botSay(
+    wrap([
+      "Terima kasih. Sekarang, dari 0 sampai 10, kamu percaya fikiran asal itu berapa kuat?",
+      "(0=tak percaya, 10=sangat percaya)"
+    ]),
+    { kind:"info", text:"Skor percaya" }
+  );
+
+  setOptions("Pilih nombor:", [
+    {label:"2", value:"2"}, {label:"4", value:"4"}, {label:"6", value:"6"},
+    {label:"8", value:"8"}, {label:"10", value:"10"},
+    {label:"Saya nak taip sendiri", value:"7"}
+  ]);
+
+  // note: selepas belief set, kita akan paparkan pilihan fikiran baru
+}
+
+async function showNewThoughtOptions(){
+  const hints = reframeSuggestions(state.distortion, state.thought);
+
+  await botSay(
+    wrap([
+      "Bagus. Sekarang pilih satu fikiran baru yang lebih adil dan lembut.",
+      "Fikiran baru bukan tipu—ia lebih seimbang."
+    ]),
+    {kind:"info", text:"Fikiran baru"}
+  );
+
+  setOptions("Cadangan fikiran baru:", [
+    { label:`🌤️ ${hints[0]}`, value:"__new__"+hints[0] },
+    { label:`🌤️ ${hints[1]}`, value:"__new__"+hints[1] },
+    { label:`🌤️ ${hints[2]}`, value:"__new__"+hints[2] },
+    { label:"Saya nak taip sendiri", value:"__new__Saya boleh cuba perlahan-lahan, satu langkah dulu." }
+  ]);
+}
+
+async function askBeliefNew(){
+  await botSay(
+    wrap([
+      "Sekarang, kamu percaya fikiran baru itu berapa kuat? (0–10)",
+      "Tak perlu sempurna—kita hanya semak rasa di hati."
+    ]),
+    { kind:"info", text:"Skor fikiran baru" }
+  );
+
+  setOptions("Pilih nombor:", [
+    {label:"2", value:"__beliefNew__2"}, {label:"4", value:"__beliefNew__4"}, {label:"6", value:"__beliefNew__6"},
+    {label:"8", value:"__beliefNew__8"}, {label:"10", value:"__beliefNew__10"},
+    {label:"Langkau", value:"__beliefNew__skip"}
+  ]);
+}
+
+async function askAction(){
+  state.step = 9;
+  setProgress(9);
+
+  const tb = toolboxFor(state.emotion);
+  const favs = getFavorites();
+  const favBtns = favs.slice(0,2).map(f => ({ label:`⭐ ${shorten(f,22)}`, value:f }));
+
+  await botSay(
+    wrap([
+      "Sekarang pilih 1 tindakan kecil. Saya akan ajar langkahnya.",
+      "Kalau ada kaedah kegemaran, kamu boleh pilih ⭐."
+    ]),
+    {kind:"info", text:"Tindakan"}
+  );
+
+  setOptions("Pilih satu:", [
+    ...favBtns,
+    ...tb
+  ]);
+}
+
+async function askPostIntensity(){
+  state.step = 10;
+  setProgress(10);
+
+  await botSay(
+    wrap([
+      "Bagus. Sekarang semak semula:",
+      "Emosi kamu sekarang kuat mana dari 0 sampai 10?"
+    ]),
+    { kind:"info", text:"Skor selepas" }
+  );
+
+  setOptions("Pilih nombor:", [
+    {label:"0", value:"0"}, {label:"2", value:"2"}, {label:"4", value:"4"},
+    {label:"6", value:"6"}, {label:"8", value:"8"}, {label:"10", value:"10"},
+    {label:"Saya nak taip sendiri", value:"5"}
+  ]);
+}
+
+// ====== Summary ======
+function showSummary(){
+  clearOptions();
+
+  const sid = state.studentId ? `Kod Murid: ${state.studentId}\n` : "";
+  const calm = state.calmingAction ? `Langkah tenang: ${state.calmingAction}\n` : "";
+  const dist = state.distortion ? `Corak fikiran: ${state.distortion.name}\n` : "";
+
+  const pre = (state.intensityPre ?? "-");
+  const post = (state.intensityPost ?? "-");
+
+  const summary = wrap([
+    sid + `Situasi: ${state.scenarioName || "-"}`,
+    `Emosi: ${state.emotion || "-"} (Sebelum: ${pre}/10 → Selepas: ${post}/10)`,
+    calm.trim(),
+    `Apa berlaku: ${state.situation || "-"}`,
+    `Fikiran asal: ${state.thought || "-"}`,
+    dist ? dist.trim() : "",
+    `Bukti menyokong: ${state.evidenceFor || "-"}`,
+    `Bukti menentang: ${state.evidenceAgainst || "-"}`,
+    `Skor percaya fikiran asal: ${state.beliefThought ?? "-"} /10`,
+    `Fikiran baru: ${state.newThought || "-"}`,
+    `Skor percaya fikiran baru: ${state.beliefNew ?? "-"} /10`,
+    `Tindakan: ${state.action || "-"}`,
+    "",
+    "Nota mesra: Kamu penting. Kamu sudah buat langkah yang berani hari ini. 🌟",
+    "Nota keselamatan: Ini alat sokongan (bukan diagnosis). Jika ada bahaya, jumpa orang dewasa dipercayai segera."
+  ]);
+
+  summaryContent.textContent = summary;
+  summaryModal.classList.remove("hidden");
+  newStudent.textContent = kioskMode ? "Sesi Murid Seterusnya" : "Mula Semula";
+
+  // ✅ save privacy-safe stats
+  addLog({
+    ts: new Date().toISOString(),
+    scenario: state.scenarioName || "",
+    emotion: state.emotion || "",
+    pre: state.intensityPre ?? null,
+    post: state.intensityPost ?? null,
+    calming: state.calmingAction || "",
+    action: state.action || "",
+    beliefThought: state.beliefThought ?? null,
+    beliefNew: state.beliefNew ?? null
+  });
+}
+
+function closeSummaryModal(){ summaryModal.classList.add("hidden"); }
+function copyText(text){ navigator.clipboard?.writeText(text).catch(() => {}); }
+
+// ====== Main handler ======
+async function handleUserInput(text, source=INPUT_SOURCE.TYPED){
   const raw = (text || "").trim();
   if (!raw) return;
 
   kioskMode = !!kioskToggle?.checked;
   longMode = kioskMode ? false : !!longToggle?.checked;
   ttsEnabled = !!ttsToggle?.checked;
+
+  state.lastInputSource = source;
   setModeUI();
 
   state.studentId = (studentIdEl?.value || "").trim();
@@ -817,46 +1085,100 @@ async function handleUserInput(text){
   if (raw === "__restart__"){ await start(); return; }
   if (raw === "__skip_scenario__"){ await scenarioSelect("other"); return; }
   if (raw === "__help_script__"){ await showHelpScript(); return; }
+  if (raw === "__show_favs__"){
+    const favs = getFavorites();
+    if (!favs.length){
+      await botSay("Belum ada kaedah kegemaran lagi. Nanti kamu boleh simpan bila guna panduan. ⭐", {kind:"info", text:"Kegemaran"});
+      return;
+    }
+    await botSay(wrap([
+      "Ini kaedah kegemaran kamu. Pilih satu untuk lihat langkah:",
+      favs.map((x,i)=>`${i+1}) ${x}`).join("\n")
+    ]), {kind:"info", text:"Kegemaran"});
+    setOptions("Pilih:", favs.slice(0,8).map(x => ({label:`⭐ ${shorten(x,28)}`, value:x})));
+    return;
+  }
+
+  if (raw === "__bookmark__"){
+    // bookmark last guide (calming or action)
+    const name = (state.step === 3 || state.pendingAfterCalm) ? state.calmingAction : state.action;
+    if (name){
+      addFavorite(name);
+      await botSay(`Dah simpan ⭐: ${name}`, {kind:"ok", text:"Disimpan"}, 250);
+    } else {
+      await botSay("Belum ada kaedah untuk disimpan.", {kind:"info", text:"Info"}, 250);
+    }
+    return;
+  }
+
   if (raw === "__ack__"){
     addMsg("OK", "user");
-    await botSay(longWrap([
+    await botSay(wrap([
       "Terima kasih. Kamu sangat berani kerana minta bantuan. 🌟",
       "Kalau nak, kita boleh mula semula. Saya ada di sini."
     ]), { kind:"ok", text:"Bagus" });
     setOptions("Pilihan:", [{ label:"🔄 Mula semula", value:"__restart__" }]);
     return;
   }
-  if (raw === "__done_action__"){
-    addMsg("Saya sudah buat ✅", "user");
-    await botSay("Bagus! Kamu baru buat satu langkah yang sihat untuk diri kamu. 🌟", {kind:"ok", text:"Hebat"});
-    showSummary();
-    return;
-  }
+
+  // repeat action
   if (raw === "__repeat_action__"){
     addMsg("Ulang panduan", "user");
-    // ulang guide ikut action terakhir
-    const did = await runGuide(state.action);
+    const name = (state.step === 3 || state.pendingAfterCalm) ? state.calmingAction : state.action;
+    const did = await runGuide(name, state.step === 3 || state.pendingAfterCalm);
     if (!did) await botSay("Baik. Kita boleh pilih tindakan lain.", {kind:"info", text:"Pilihan"});
     return;
   }
 
-  // Safety scan
+  // done action (two cases)
+  if (raw === "__done_action__"){
+    addMsg("Saya sudah buat ✅", "user");
+
+    // if calming stage -> continue to situation
+    if (state.step === 3 || state.pendingAfterCalm){
+      state.pendingAfterCalm = false;
+      await botSay(wrap([
+        "Bagus! Kamu baru buat satu langkah yang sihat untuk diri kamu. 🌟",
+        "Jom sambung—saya akan ikut kamu langkah demi langkah."
+      ]), {kind:"ok", text:"Hebat"});
+      await proceedToSituation();
+      return;
+    }
+
+    // if action stage -> ask post intensity
+    if (state.step === 9){
+      await botSay("Bagus! Kamu dah buat tindakan kecil itu. 🌟", {kind:"ok", text:"Siap"});
+      await askPostIntensity();
+      return;
+    }
+
+    // fallback
+    await botSay("Baik ✅ Jom kita sambung.", {kind:"ok", text:"Teruskan"});
+    return;
+  }
+
+  // safety scan
   const lvl = safetyLevelFromText(raw);
   if (lvl !== "green"){
     addMsg(raw, "user");
     const s = safetyResponse(lvl);
     if (s){
       await botSay(s.msg, s.tag, 250);
-      setOptions("Pilihan:", [
+
+      // stronger help buttons
+      setOptions("Pilih satu bantuan:", [
         { label:"🗣️ Ayat untuk minta tolong", value:"__help_script__" },
+        { label:"👩‍🏫 Pergi jumpa cikgu/kaunselor", value:"Saya akan jumpa cikgu/kaunselor sekarang." },
+        { label:"📞 Saya mahu hubungi ibu bapa/penjaga", value:"Saya mahu hubungi ibu bapa/penjaga." },
         { label:"🔄 Mula semula", value:"__restart__" }
       ]);
     }
     return;
   }
 
-  // normal input
+  // normal echo
   addMsg(raw, "user");
+
   const scn = SCENARIOS[state.scenarioKey] || SCENARIOS.other;
 
   // Step 1: emotion
@@ -865,7 +1187,7 @@ async function handleUserInput(text){
     state.step = 2;
     setProgress(2);
 
-    await botSay(longWrap([
+    await botSay(wrap([
       reflectEmotion(state.emotion),
       validateEmotion(state.emotion),
       gentleBridge(),
@@ -880,18 +1202,18 @@ async function handleUserInput(text){
     return;
   }
 
-  // Step 2: intensity
+  // Step 2: intensity pre
   if (state.step === 2){
     let n = isNumberLike(raw) ? Number(raw) : 6;
     n = clamp(n, 0, 10);
-    state.intensity = n;
+    state.intensityPre = n;
 
     if (n >= 8){
       state.step = 3;
       setProgress(3);
       const tb = toolboxFor(state.emotion);
 
-      await botSay(longWrap([
+      await botSay(wrap([
         `Baik. Kekuatan emosi kamu ${n}/10—itu memang kuat.`,
         "Bila emosi kuat, kita tolong badan tenang dulu (baru senang berfikir).",
         "Pilih satu cara cepat sekarang:"
@@ -901,10 +1223,11 @@ async function handleUserInput(text){
       return;
     }
 
+    // go to situation
     state.step = 4;
     setProgress(4);
 
-    await botSay(longWrap([
+    await botSay(wrap([
       `Baik. Kekuatan emosi kamu ${n}/10.`,
       praiseSmall(),
       "Sekarang, apa yang berlaku? Cerita ringkas."
@@ -918,28 +1241,19 @@ async function handleUserInput(text){
     return;
   }
 
-  // Step 3: calming first
+  // Step 3: calming
   if (state.step === 3){
-    // treat input as calming action name; store and show guide if available
-    state.action = raw;
-
-    const guided = await runGuide(state.action);
-    if (guided) return;
-
-    // if not guided, continue to situation
-    state.step = 4;
-    setProgress(4);
-
-    await botSay("Baik. Sekarang cerita ringkas apa yang berlaku.", {kind:"info", text:"Situasi"});
-    setOptions("Contoh jawapan:", [
-      { label: scn.example, value: scn.example },
-      { label:"Saya rasa biasa-biasa sahaja.", value:"saya rasa biasa-biasa sahaja" },
-      { label:"Saya tak tahu nak cerita.", value:"tak tahu" }
-    ]);
+    state.calmingAction = raw;
+    const guided = await runGuide(state.calmingAction, true);
+    if (guided){
+      state.pendingAfterCalm = true;
+      return;
+    }
+    await proceedToSituation();
     return;
   }
 
-  // Step 4: situation + detect emosi
+  // Step 4: situation
   if (state.step === 4){
     if (handleIDontKnow(raw)){
       await botSay("Tak apa. Pilih satu ayat yang paling dekat.", {kind:"info", text:"Tak apa"});
@@ -954,7 +1268,7 @@ async function handleUserInput(text){
 
     state.situation = raw;
 
-    // detect 1–2 emotions from situation
+    // emotion consistency check
     const detected = detectEmotionsFromSituation(state.situation, state.scenarioKey).map(x=>x.emotion);
     const current = state.emotion || "Neutral";
     const currentG = emotionGroup(current);
@@ -962,7 +1276,7 @@ async function handleUserInput(text){
     const suggestNeeded = suggested[0] && emotionGroup(suggested[0]) !== "unknown" && emotionGroup(suggested[0]) !== currentG;
 
     if (needsConsistencyCheck(current, state.situation) || suggestNeeded){
-      const msg = longWrap([
+      const msg = wrap([
         "Saya nak semak sekejap supaya saya tak tersalah faham 🙂",
         `Ayat situasi: “${shorten(state.situation, 80)}”`,
         suggested.length ? `Emosi yang mungkin dekat: ${suggested.join(" + ")}.` : "Saya nampak emosi & ayat mungkin tak selari.",
@@ -971,24 +1285,18 @@ async function handleUserInput(text){
       ]);
       await botSay(msg, {kind:"info", text:"Semak emosi"});
 
-      const opts = [
-        { label:`✅ Kekal: ${current}`, value: current }
-      ];
-      suggested.forEach(e => opts.push({ label:`⭐ Tukar: ${e}`, value: e }));
+      const opts = [{ label:`✅ Kekal: ${current}`, value: "__set_emotion__"+current }];
+      suggested.forEach(e => opts.push({ label:`⭐ Tukar: ${e}`, value: "__set_emotion__"+e }));
       opts.push(
-        { label:"😟 Risau", value:"Risau" },
-        { label:"😡 Marah", value:"Marah" },
-        { label:"😢 Sedih", value:"Sedih" },
-        { label:"😨 Takut", value:"Takut" },
-        { label:"😳 Malu", value:"Malu" },
-        { label:"😐 Neutral", value:"Neutral" }
+        { label:"😟 Risau", value:"__set_emotion__Risau" },
+        { label:"😡 Marah", value:"__set_emotion__Marah" },
+        { label:"😢 Sedih", value:"__set_emotion__Sedih" },
+        { label:"😨 Takut", value:"__set_emotion__Takut" },
+        { label:"😳 Malu", value:"__set_emotion__Malu" },
+        { label:"😐 Neutral", value:"__set_emotion__Neutral" }
       );
 
-      // Set emotion then proceed
-      setOptions("Pilih satu:", opts.map(o => ({
-        label: o.label,
-        value: "__set_emotion__" + o.value
-      })));
+      setOptions("Pilih satu:", opts);
       return;
     }
 
@@ -996,10 +1304,9 @@ async function handleUserInput(text){
     return;
   }
 
-  // handle emotion set from options
+  // set emotion helper
   if (raw.startsWith("__set_emotion__")){
-    const emo = raw.replace("__set_emotion__", "").trim();
-    state.emotion = emo || state.emotion;
+    state.emotion = raw.replace("__set_emotion__", "").trim() || state.emotion;
     await proceedToThought();
     return;
   }
@@ -1019,94 +1326,104 @@ async function handleUserInput(text){
 
     state.thought = raw;
     state.distortion = detectDistortion(state.thought);
-    state.step = 6;
-    setProgress(6);
-
-    const hints = reframeSuggestions(state.distortion, state.thought);
-
-    await botSay(longWrap([
-      `Saya dengar fikiran kamu: "${shorten(state.thought, 75)}"`,
-      state.distortion ? `Ini nampak macam corak "${state.distortion.name}".` : "Terima kasih sebab jujur.",
-      "Pilih satu fikiran baru yang lebih adil dan lembut:"
-    ]), {kind:"info", text:"Fikiran baru"});
-
-    setOptions("Cadangan fikiran baru:", [
-      { label:`🌤️ ${hints[0]}`, value:hints[0] },
-      { label:`🌤️ ${hints[1]}`, value:hints[1] },
-      { label:`🌤️ ${hints[2]}`, value:hints[2] },
-      { label:"Saya nak taip sendiri", value:"Saya boleh cuba perlahan-lahan, satu langkah dulu." }
-    ]);
+    await askEvidenceFor();
     return;
   }
 
-  // Step 6: new thought -> actions (guided!)
+  // Step 6: evidence for
   if (state.step === 6){
-    state.newThought = raw;
-    state.step = 7;
-    setProgress(7);
-
-    const tb = toolboxFor(state.emotion);
-
-    await botSay(longWrap([
-      "Saya suka cara kamu pilih fikiran baru itu. 🌈",
-      `"${shorten(state.newThought, 90)}"`,
-      "Sekarang pilih 1 tindakan kecil. Saya akan ajar langkahnya."
-    ]), {kind:"info", text:"Tindakan"});
-
-    setOptions("Pilih satu:", tb);
+    state.evidenceFor = handleIDontKnow(raw) ? "Tak pasti" : raw;
+    await askEvidenceAgainst();
     return;
   }
 
-  // Step 7: action -> run guide -> summary
+  // Step 7: evidence against
   if (state.step === 7){
-    state.action = raw;
+    state.evidenceAgainst = handleIDontKnow(raw) ? "Tak pasti" : raw;
+    await askBeliefAndNewThought();
+    return;
+  }
 
-    // if it's help script
+  // Step 8: belief thought OR new thought OR belief new
+  if (state.step === 8){
+    // belief new handler
+    if (raw.startsWith("__beliefNew__")){
+      const v = raw.replace("__beliefNew__", "");
+      if (v === "skip"){
+        state.beliefNew = null;
+      } else {
+        state.beliefNew = clamp(Number(v), 0, 10);
+      }
+      await askAction();
+      return;
+    }
+
+    // new thought handler
+    if (raw.startsWith("__new__")){
+      state.newThought = raw.replace("__new__", "").trim();
+      await askBeliefNew();
+      return;
+    }
+
+    // belief thought
+    let n = isNumberLike(raw) ? Number(raw) : 6;
+    n = clamp(n, 0, 10);
+    state.beliefThought = n;
+
+    await showNewThoughtOptions();
+    return;
+  }
+
+  // Step 9: choose action
+  if (state.step === 9){
+    state.action = raw;
     if (raw === "__help_script__"){ await showHelpScript(); return; }
 
-    const guided = await runGuide(state.action);
+    const guided = await runGuide(state.action, false);
     if (!guided){
-      // if no guide, just confirm and show summary
       await botSay("Baik. Terima kasih—itu satu tindakan yang bagus. ✅", {kind:"ok", text:"Siap"});
-      showSummary();
+      await askPostIntensity();
     }
     return;
   }
+
+  // Step 10: post intensity -> summary
+  if (state.step === 10){
+    let n = isNumberLike(raw) ? Number(raw) : state.intensityPre;
+    n = clamp(n, 0, 10);
+    state.intensityPost = n;
+
+    await botSay(wrap([
+      `Terima kasih. Emosi kamu tadi ${state.intensityPre}/10, sekarang ${state.intensityPost}/10.`,
+      "Walaupun turun sedikit sahaja, itu tetap kemajuan. 🌿",
+      "Sekarang saya akan buat ringkasan."
+    ]), {kind:"ok", text:"Ringkasan"});
+
+    showSummary();
+    return;
+  }
 }
-
-// ====== Summary ======
-function showSummary(){
-  clearOptions();
-  const sid = state.studentId ? `Kod Murid: ${state.studentId}\n` : "";
-  const dist = state.distortion ? `Corak fikiran: ${state.distortion.name}\n` : "";
-
-  const summary = longWrap([
-    sid + `Situasi: ${state.scenarioName || "-"}`,
-    `Emosi: ${state.emotion || "-"} (Kekuatan: ${state.intensity || "-"} /10)`,
-    `Apa berlaku: ${state.situation || "-"}`,
-    `Fikiran asal: ${state.thought || "-"}`,
-    dist ? dist.trim() : "",
-    `Fikiran baru: ${state.newThought || "-"}`,
-    `Tindakan: ${state.action || "-"}`,
-    "",
-    "Nota mesra: Kamu penting. Kamu sudah buat langkah yang berani hari ini. 🌟",
-    "Nota keselamatan: Ini alat sokongan (bukan diagnosis). Jika ada bahaya, jumpa orang dewasa dipercayai segera."
-  ]);
-
-  summaryContent.textContent = summary;
-  summaryModal.classList.remove("hidden");
-  newStudent.textContent = kioskMode ? "Sesi Murid Seterusnya" : "Mula Semula";
-}
-
-function closeSummaryModal(){ summaryModal.classList.add("hidden"); }
-function copyText(text){ navigator.clipboard?.writeText(text).catch(() => {}); }
 
 // ====== Events ======
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  await handleUserInput(input.value);
+  await handleUserInput(input.value, INPUT_SOURCE.TYPED);
   input.value = "";
   input.focus();
+});
+
+// Enter send, Shift+Enter newline
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    form.requestSubmit();
+  }
+});
+
+// autoresize textarea
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 140) + "px";
 });
 
 resetBtn.addEventListener("click", start);
@@ -1136,14 +1453,31 @@ copySummary.addEventListener("click", () => {
   addMsg("Ringkasan telah di-copy ✅", "bot", { kind:"ok", text:"Siap" });
 });
 
+exportStats.addEventListener("click", () => {
+  const logs = loadJSON(LS_LOGS, []);
+  const last = logs[logs.length - 1] || null;
+  copyText(JSON.stringify(last, null, 2));
+  addMsg("Statistik (tanpa cerita) telah di-copy ✅", "bot", { kind:"ok", text:"Siap" });
+});
+
 newStudent.addEventListener("click", () => {
   closeSummaryModal();
   if (kioskMode && studentIdEl) studentIdEl.value = "";
   start();
 });
 
-// Start
+// Teacher modal events
+teacherBtn.addEventListener("click", openTeacher);
+closeTeacher.addEventListener("click", closeTeacherModal);
+closeTeacher2.addEventListener("click", closeTeacherModal);
+copyTeacher.addEventListener("click", () => {
+  copyText(buildTeacherGuide());
+  addMsg("Panduan guru telah di-copy ✅", "bot", { kind:"ok", text:"Siap" });
+});
+
+// ====== Init ======
 resetState();
 applyTheme();
 applyTTS();
+setModeUI();
 start();
