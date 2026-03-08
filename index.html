@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chatbot CBT Sekolah Rendah</title>
+  <title>Kawan CBT</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -16,23 +16,24 @@
           <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true">
             <defs>
               <linearGradient id="g1" x1="0" x2="1">
-                <stop offset="0" stop-color="#7c3aed" stop-opacity=".9"/>
-                <stop offset="1" stop-color="#06b6d4" stop-opacity=".9"/>
+                <stop offset="0" stop-color="#7c3aed" stop-opacity=".95"/>
+                <stop offset="1" stop-color="#06b6d4" stop-opacity=".95"/>
               </linearGradient>
             </defs>
             <circle cx="60" cy="60" r="52" fill="url(#g1)" opacity=".18"/>
-            <circle cx="60" cy="60" r="40" fill="#fff" opacity=".95"/>
+            <circle cx="60" cy="60" r="41" fill="#fff" opacity=".98"/>
             <circle cx="45" cy="55" r="5" fill="#111827"/>
             <circle cx="75" cy="55" r="5" fill="#111827"/>
             <path d="M45 74 Q60 86 75 74" stroke="#111827" stroke-width="5" fill="none" stroke-linecap="round"/>
-            <path d="M22 46 Q30 30 46 28" stroke="#7c3aed" stroke-width="6" fill="none" stroke-linecap="round" opacity=".6"/>
-            <path d="M98 46 Q90 30 74 28" stroke="#06b6d4" stroke-width="6" fill="none" stroke-linecap="round" opacity=".6"/>
+            <path d="M22 46 Q30 30 46 28" stroke="#7c3aed" stroke-width="6" fill="none" stroke-linecap="round" opacity=".65"/>
+            <path d="M98 46 Q90 30 74 28" stroke="#06b6d4" stroke-width="6" fill="none" stroke-linecap="round" opacity=".65"/>
           </svg>
         </div>
 
-        <div>
-          <h1>Chatbot CBT</h1>
-          <p class="sub">Saya akan dengar, faham, dan bantu kamu langkah demi langkah. 🌈</p>
+        <div class="brandText">
+          <h1>Kawan CBT</h1>
+          <p class="sub">Teman kecil untuk emosi besar.</p>
+          <p class="sub2">Kalau hati rasa berat, kita boleh mula perlahan-lahan bersama. 🌈</p>
         </div>
       </div>
 
@@ -42,13 +43,22 @@
           <input id="studentId" placeholder="Contoh: 3A-05" />
         </div>
 
+        <div class="miniField">
+          <label for="gradeSelect">Tahap / Umur</label>
+          <select id="gradeSelect">
+            <option value="auto" selected>Auto</option>
+            <option value="lower">Tahun 1–3</option>
+            <option value="upper">Tahun 4–6</option>
+          </select>
+        </div>
+
         <label class="switch" title="Respons lebih panjang dan empati">
           <input id="longToggle" type="checkbox" checked />
           <span class="slider"></span>
           <span class="switchLabel">Mendalam</span>
         </label>
 
-        <label class="switch" title="Sesuai untuk murid guna bergilir (auto ringkas)">
+        <label class="switch" title="Sesuai untuk murid guna bergilir">
           <input id="kioskToggle" type="checkbox" />
           <span class="slider"></span>
           <span class="switchLabel">Kiosk</span>
@@ -66,30 +76,69 @@
           <span class="switchLabel">Suara</span>
         </label>
 
+        <label class="switch" title="Jika ON: tidak simpan data di browser">
+          <input id="privacyToggle" type="checkbox" checked />
+          <span class="slider"></span>
+          <span class="switchLabel">Privasi</span>
+        </label>
+
+        <button id="clearDataBtn" class="btn ghost" type="button" title="Padam statistik & kegemaran (local)">🧹 Clear</button>
         <button id="teacherBtn" class="btn ghost" type="button" title="Panduan untuk guru/kaunselor">👩‍🏫 Guru</button>
         <button id="resetBtn" class="btn ghost" type="button">Mula Semula</button>
       </div>
     </header>
 
+    <section class="heroCard">
+      <div class="heroLeft">
+        <div class="heroBadge">💛 Ruang yang selamat untuk mula bercerita</div>
+        <h2 class="heroTitle">Kawan CBT membantu murid memahami emosi, menyusun fikiran, dan memilih langkah kecil yang lebih baik.</h2>
+        <p class="heroDesc">
+          Kawan CBT bukan untuk menghakimi. Ia mendengar dahulu, kemudian membimbing murid dengan bahasa yang mudah, lembut, dan sesuai untuk sekolah rendah.
+        </p>
+      </div>
+      <div class="heroRight">
+        <div class="miniStat">
+          <div class="miniStatLabel">Fokus</div>
+          <div class="miniStatValue">Emosi → Fikiran → Langkah kecil</div>
+        </div>
+        <div class="miniStat">
+          <div class="miniStatLabel">Sesuai untuk</div>
+          <div class="miniStatValue">Murid sekolah rendah & guru</div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="metaRow">
         <div class="pill" id="modePill">Mode: Normal</div>
-        <div class="pill" id="stepPill">Langkah: 0/10</div>
+        <div class="pill" id="stepPill">Langkah: 0/11</div>
         <div class="pill" id="hintPill">Tip: Pilih butang</div>
+      </div>
+
+      <div class="metaRow metaRow2">
+        <div class="pill pillWide" id="stepExplain">Penerangan: Pilih situasi untuk mula.</div>
+        <button id="toBottomBtn" class="btn ghost tiny" type="button" title="Pergi ke bawah">⬇️</button>
       </div>
 
       <div class="progress">
         <div id="progressBar" class="barFill"></div>
       </div>
 
+      <div class="comfortRow">
+        <div class="comfortChip">💛 Kamu tak perlu jawab dengan sempurna</div>
+        <div class="comfortChip">🌿 Kita boleh mula perlahan-lahan</div>
+        <div class="comfortChip">🧠 Emosi → Fikiran → Langkah kecil</div>
+      </div>
+
       <div id="scenarioArea" class="scenarioArea">
-        <div class="scenarioTitle">Pilih situasi (klik satu):</div>
+        <div class="scenarioTitle">Pilih situasi yang paling dekat dengan kamu:</div>
+
         <div class="scenarioGrid">
           <button class="cardBtn" data-scn="exam">
             <div class="cardIcon">📚</div>
             <div class="cardText">
               <div class="cardH">Peperiksaan / Kerja Sekolah</div>
-              <div class="cardP">stress, risau markah</div>
+              <div class="cardP">risau markah, stress belajar</div>
             </div>
           </button>
 
@@ -97,7 +146,7 @@
             <div class="cardIcon">🛡️</div>
             <div class="cardText">
               <div class="cardH">Buli / Diejek</div>
-              <div class="cardP">takut, malu, perlukan bantuan</div>
+              <div class="cardP">malu, takut, perlukan bantuan</div>
             </div>
           </button>
 
@@ -105,7 +154,7 @@
             <div class="cardIcon">🧑‍🤝‍🧑</div>
             <div class="cardText">
               <div class="cardH">Kawan / Bergaduh</div>
-              <div class="cardP">marah, sedih, rasa terasing</div>
+              <div class="cardP">sedih, marah, rasa terasing</div>
             </div>
           </button>
 
@@ -113,7 +162,7 @@
             <div class="cardIcon">👩‍🏫</div>
             <div class="cardText">
               <div class="cardH">Dimarah Cikgu</div>
-              <div class="cardP">takut, rasa bersalah</div>
+              <div class="cardP">takut, rasa bersalah, malu</div>
             </div>
           </button>
 
@@ -121,7 +170,7 @@
             <div class="cardIcon">🏠</div>
             <div class="cardText">
               <div class="cardH">Keluarga / Di rumah</div>
-              <div class="cardP">dimarah, disalahfaham</div>
+              <div class="cardP">sedih, risau, disalahfaham</div>
             </div>
           </button>
 
@@ -129,16 +178,16 @@
             <div class="cardIcon">💬</div>
             <div class="cardText">
               <div class="cardH">Lain-lain</div>
-              <div class="cardP">apa-apa situasi</div>
+              <div class="cardP">apa-apa situasi yang kamu rasa</div>
             </div>
           </button>
         </div>
       </div>
 
       <div class="tipsRow">
-        <div class="tipChip">✨ Kamu dihargai</div>
-        <div class="tipChip">🧠 Emosi → Fikiran → Tindakan</div>
-        <div class="tipChip">🧘 Nafas & Grounding</div>
+        <div class="tipChip">✨ Kawan CBT akan dengar dulu</div>
+        <div class="tipChip">🌈 Langkah kecil pun dikira berani</div>
+        <div class="tipChip">🤝 Minta bantuan bila perlu</div>
       </div>
     </section>
 
@@ -150,13 +199,19 @@
     </section>
 
     <form id="form" class="inputBar">
-      <textarea id="input" rows="1" placeholder="Taip di sini… (Enter=hantar, Shift+Enter=baris baru)"></textarea>
+      <div class="inputCol">
+        <textarea id="input" rows="1" placeholder="Taip di sini… (Enter = hantar, Shift+Enter = baris baru)"></textarea>
+        <div class="charRow">
+          <span id="charHint" class="charHint">Tip: satu ayat pendek pun okay.</span>
+          <span id="charCount" class="charCount">0/280</span>
+        </div>
+      </div>
       <button class="btn" type="submit">Hantar</button>
     </form>
 
     <footer class="foot">
       <small>
-        Nota keselamatan: Jika ada bahaya (cedera diri/dera/ancaman), sila jumpa guru, ibu bapa/penjaga atau orang dewasa dipercayai segera.
+        Nota keselamatan: Jika ada bahaya, sila jumpa guru, ibu bapa/penjaga, atau orang dewasa dipercayai dengan segera.
       </small>
     </footer>
 
@@ -164,14 +219,22 @@
     <div id="summaryModal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modalCard">
         <div class="modalTop">
-          <div class="modalH">Ringkasan CBT</div>
+          <div class="modalH">Rumusan Bersama Kawan CBT</div>
           <button id="closeSummary" class="iconBtn" type="button">✕</button>
         </div>
+
+        <div class="summaryTabs">
+          <button id="tabMurid" class="tabBtn active" type="button">Murid</button>
+          <button id="tabGuru" class="tabBtn" type="button">Guru</button>
+        </div>
+
         <div id="summaryContent" class="summaryContent"></div>
+
         <div class="modalActions">
-          <button id="copySummary" class="btn ghost" type="button">Copy Ringkasan</button>
-          <button id="exportStats" class="btn ghost" type="button">Copy Statistik (tanpa cerita)</button>
-          <button id="newStudent" class="btn" type="button">Sesi Murid Seterusnya</button>
+          <button id="copySummary" class="btn ghost" type="button">Copy Rumusan</button>
+          <button id="copyTeacherSummary" class="btn ghost" type="button">Copy Ringkasan Guru</button>
+          <button id="exportStats" class="btn ghost" type="button">Copy Statistik</button>
+          <button id="newStudent" class="btn" type="button">Sesi Baharu</button>
         </div>
       </div>
     </div>
