@@ -35,6 +35,11 @@
   const cloudConfig = window.KAWAN_SUPABASE_CONFIG || {};
   const cloudConfigured = !!(cloudConfig.supabaseUrl && cloudConfig.supabaseAnonKey);
   const recordsTable = cloudConfig.table || "gbk_records";
+  // Separate write-only inbox for pupils. Never grant anon read access.
+  const studentSubmissionsTable = "student_submissions";
+  let studentSubmitClient = null;
+  let studentSubmitConsent = null;
+  let studentPrivacyAllow = null;
   let supabaseClient = null;
   let currentGbkUser = null;
   let currentGbkAuthorized = false;
@@ -54,6 +59,11 @@
   if (cloudConfigured && window.supabase && typeof window.supabase.createClient === "function") {
     supabaseClient = window.supabase.createClient(cloudConfig.supabaseUrl, cloudConfig.supabaseAnonKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    // A separate client prevents a pupil submission from borrowing an active
+    // GBK access token. Publishable key is safe here; secret keys never are.
+    studentSubmitClient = window.supabase.createClient(cloudConfig.supabaseUrl, cloudConfig.supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "kawan-anon-inbox" }
     });
   }
 
@@ -281,22 +291,69 @@
     return cloudRecordsCache.slice();
   }
 
+  function recordFromSubmission(row) {
+    const record = {
+      recordId: `submission:${row.submission_id}`,
+      source: "student_submission",
+      studentId: row.student_code,
+      ts: row.submitted_at,
+      createdAt: row.submitted_at,
+      scenarioKey: row.scenario_key || "",
+      scenario: row.scenario || "",
+      situation: row.situation || "",
+      clarifyQ: row.clarify_q || "",
+      clarifyA: row.clarify_a || "",
+      emotion: row.emotion || "",
+      pre: row.intensity_pre,
+      post: row.intensity_post,
+      calming: row.calming || "",
+      action: row.action || "",
+      thought: row.thought || "",
+      evidenceFor: row.evidence_for || "",
+      evidenceAgainst: row.evidence_against || "",
+      beliefThought: row.belief_thought,
+      newThought: row.new_thought || "",
+      beliefNew: row.belief_new,
+      safetyFlag: row.safety_flag || "green",
+      followUpPlan: row.follow_up_plan || "",
+      strengthOfDay: row.strength_of_day || "",
+      studentSummary: row.student_summary || "",
+      status: row.status || "Perlu semakan",
+      counselorNotes: row.counselor_notes || "",
+      followUpDate: row.follow_up_date || "",
+      updatedAt: row.updated_at || row.submitted_at
+    };
+    const marker = markerForRecord(record);
+    if (record.safetyFlag !== "green") {
+      marker.flagged = true;
+      if (!marker.categories.includes("Semak keadaan keselamatan murid")) marker.categories.push("Semak keadaan keselamatan murid");
+    }
+    record.gbkReview = { ...marker, reviewed: !!row.reviewed, reviewedAt: row.reviewed_at || "" };
+    return record;
+  }
+
   async function refreshCloudRecords() {
     if (!supabaseClient || !currentGbkUser || !currentGbkAuthorized) return false;
-    const { data, error } = await supabaseClient
-      .from(recordsTable)
-      .select("record_id, record_data, updated_at")
-      .order("updated_at", { ascending: false });
-    if (error) {
-      console.error("Kawan CBT: gagal memuat rekod awan.", error);
-      setStatusMessage("Rekod gagal dimuatkan daripada pangkalan data. Semak sambungan dan konfigurasi RLS Supabase.", "danger");
+    // BOTH tables are protected by database-side RLS. The anonymous client
+    // never receives a SELECT grant for either one.
+    const [gbkResult, inboxResult] = await Promise.all([
+      supabaseClient.from(recordsTable).select("record_id, record_data, updated_at").order("updated_at", { ascending: false }),
+      supabaseClient.from(studentSubmissionsTable).select("*").order("submitted_at", { ascending: false })
+    ]);
+    if (gbkResult.error || inboxResult.error) {
+      console.error("Kawan CBT: gagal memuat rekod / peti masuk.", gbkResult.error || inboxResult.error);
+      setStatusMessage("Rekod gagal dimuatkan. Pastikan SQL student-submissions telah dijalankan dan polisi RLS adalah betul.", "danger");
       return false;
     }
-    cloudRecordsCache = (data || []).map(row => ({
-      ...(row.record_data && typeof row.record_data === "object" ? row.record_data : {}),
-      recordId: row.record_id,
-      updatedAt: row.updated_at || (row.record_data || {}).updatedAt || ""
-    }));
+    cloudRecordsCache = [
+      ...(gbkResult.data || []).map(row => ({
+        ...(row.record_data && typeof row.record_data === "object" ? row.record_data : {}),
+        recordId: row.record_id,
+        source: "gbk_records",
+        updatedAt: row.updated_at || (row.record_data || {}).updatedAt || ""
+      })),
+      ...(inboxResult.data || []).map(recordFromSubmission)
+    ];
     return true;
   }
 
@@ -304,6 +361,26 @@
     if (!supabaseClient || !currentGbkUser || !currentGbkAuthorized) {
       setStatusMessage("Sila log masuk menggunakan akaun GBK yang diluluskan.", "warn");
       return false;
+    }
+    if (String(record.recordId).startsWith("submission:")) {
+      const id = String(record.recordId).slice("submission:".length);
+      const reviewed = !!record.gbkReview?.reviewed;
+      const { error } = await supabaseClient.from(studentSubmissionsTable).update({
+        status: record.status,
+        counselor_notes: record.counselorNotes || "",
+        follow_up_date: record.followUpDate || null,
+        reviewed,
+        reviewed_at: reviewed ? (record.gbkReview?.reviewedAt || new Date().toISOString()) : null,
+        updated_at: new Date().toISOString()
+      }).eq("submission_id", id);
+      if (error) {
+        console.error("Kawan CBT: gagal mengemas kini serahan murid.", error);
+        setStatusMessage("Perubahan serahan murid gagal disimpan. Semak RLS Supabase.", "danger");
+        return false;
+      }
+      const index = cloudRecordsCache.findIndex(item => item.recordId === record.recordId);
+      if (index >= 0) cloudRecordsCache[index] = { ...record };
+      return true;
     }
     const payload = {
       record_id: String(record.recordId),
@@ -325,7 +402,10 @@
 
   async function deleteCloudRecord(recordId) {
     if (!supabaseClient || !currentGbkUser || !currentGbkAuthorized) return false;
-    const { error } = await supabaseClient.from(recordsTable).delete().eq("record_id", recordId);
+    const studentRecord = String(recordId).startsWith("submission:");
+    const { error } = studentRecord
+      ? await supabaseClient.from(studentSubmissionsTable).delete().eq("submission_id", String(recordId).slice("submission:".length))
+      : await supabaseClient.from(recordsTable).delete().eq("record_id", recordId);
     if (error) {
       console.error("Kawan CBT: gagal memadam rekod awan.", error);
       setStatusMessage("Rekod gagal dipadam daripada pangkalan data.", "danger");
@@ -393,7 +473,7 @@
     if (!filtered.length) {
       recordsList.appendChild(safeText("p", "recordsEmpty", allRecords.length
         ? "Tiada rekod yang sepadan dengan carian ini."
-        : "Belum ada rekod dalam pangkalan data. Selesaikan sesi dan pilih Simpan Rekod selepas log masuk GBK."));
+        : "Belum ada rekod. Serahan murid akan muncul di sini selepas dihantar dengan persetujuan."));
       return;
     }
 
@@ -416,7 +496,8 @@
         (marker.categories || []).forEach(category => flagRow.appendChild(safeText("span", "recordFlagCategory", category)));
       }
 
-      const meta = safeText("p", "recordCardMeta", `${formatDate(record.ts || record.createdAt)} · ID rekod: ${record.recordId}`);
+      const sourceLabel = record.source === "student_submission" ? "📨 Serahan murid" : "📁 Rekod GBK";
+      const meta = safeText("p", "recordCardMeta", `${sourceLabel} · ${formatDate(record.ts || record.createdAt)} · ID rekod: ${record.recordId}`);
       const summary = safeText("p", "recordCardSummary", recordSummary(record));
       const open = document.createElement("button");
       open.type = "button";
@@ -584,79 +665,146 @@
     updateLogoutControl();
   }
 
-  async function saveCurrentRecord() {
+  function ensureStudentSubmissionControls() {
+    if (document.getElementById("studentSubmitConsent")) return;
+    const container = document.createElement("section");
+    container.className = "studentSubmitConsentBox";
+    container.innerHTML = `
+      <div class="studentSubmitHeading">📨 Hantar kepada Guru Kaunseling (pilihan)</div>
+      <p>Tiada rekod dihantar secara automatik. Jangan taip nama penuh, nombor kad pengenalan atau alamat. Hanya GBK yang diberi kebenaran boleh membuka serahan dalam sistem ini.</p>
+      <label class="studentSubmitConsentLabel"><input id="studentSubmitConsent" type="checkbox" />
+      <span>Saya memilih untuk berkongsi ringkasan sesi ini dengan Guru Kaunseling untuk semakan atau susulan.</span></label>
+      <p id="studentPrivacyNotice" class="studentPrivacyNotice"></p>
+      <button id="studentPrivacyAllow" class="btn btn-soft" type="button">Benarkan penghantaran untuk sesi ini</button>
+      <p class="studentSubmitSafety">Jika kamu tidak selamat atau perlukan bantuan segera, beritahu guru atau orang dewasa yang dipercayai sekarang. Penghantaran ini bukan saluran kecemasan.</p>`;
+    saveRecordBtn.parentNode?.parentNode?.insertBefore(container, saveRecordBtn.parentNode);
+    studentSubmitConsent = document.getElementById("studentSubmitConsent");
+    studentPrivacyAllow = document.getElementById("studentPrivacyAllow");
+    studentSubmitConsent?.addEventListener("change", updateStudentSubmissionControls);
+    studentPrivacyAllow?.addEventListener("click", () => {
+      if (!studentSubmitConsent?.checked) {
+        setSaveMessage("Tandakan kotak persetujuan dahulu. Menghantar rekod adalah pilihan kamu.", "warn");
+        return;
+      }
+      if (privacyToggleEl) {
+        privacyToggleEl.checked = false;
+        privacyToggleEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      setSaveMessage("Penghantaran dibenarkan untuk sesi ini sahaja. Rekod BELUM dihantar; tekan Hantar kepada GBK untuk meneruskan.", "info");
+      updateStudentSubmissionControls();
+    });
+    const style = document.createElement("style");
+    style.id = "studentSubmissionStyles";
+    style.textContent = `
+      .studentSubmitConsentBox{border:1.5px solid rgba(42,133,136,.27);border-radius:20px;padding:18px;margin:16px 0;background:linear-gradient(120deg,rgba(232,250,243,.95),rgba(244,240,255,.93));color:var(--text)}
+      .studentSubmitHeading{font-weight:900;font-size:19px;margin-bottom:9px}
+      .studentSubmitConsentBox p{font-size:15px;line-height:1.65;margin:8px 0}
+      .studentSubmitConsentLabel{display:flex;align-items:flex-start;gap:11px;font-size:16px;line-height:1.5;font-weight:700;margin:14px 0;cursor:pointer}
+      .studentSubmitConsentLabel input{width:22px;height:22px;flex:0 0 22px;accent-color:#2b998c;margin:1px 0}
+      .studentPrivacyNotice{font-weight:800}
+      .studentSubmitSafety{font-size:13px!important;color:var(--muted)!important;margin-top:14px!important}
+      @media(max-width:650px){.studentSubmitConsentBox{padding:14px}.studentSubmitConsentLabel{font-size:16px}}
+    `;
+    document.head.appendChild(style);
+    updateStudentSubmissionControls();
+  }
+
+  function updateStudentSubmissionControls() {
+    const notice = document.getElementById("studentPrivacyNotice");
+    if (notice) notice.textContent = privacyIsOn()
+      ? "🔒 Privasi ON: tiada penghantaran dibenarkan. Jika mahu berkongsi, tandakan persetujuan dan pilih Benarkan penghantaran dahulu."
+      : "✅ Privasi OFF: penghantaran boleh dibuat hanya selepas kotak persetujuan ditanda dan butang Hantar ditekan.";
+    if (studentPrivacyAllow) studentPrivacyAllow.classList.toggle("hidden", !privacyIsOn());
+  }
+
+  function limitedText(value, maxLength) {
+    return String(value == null ? "" : value).trim().slice(0, maxLength);
+  }
+
+  function optionalScore(value) {
+    if (value === "" || value == null) return null;
+    const score = Number(value);
+    return Number.isInteger(score) && score >= 0 && score <= 10 ? score : null;
+  }
+
+  function anonymousStudentCode() {
+    if (window.crypto?.getRandomValues) {
+      const bytes = new Uint8Array(5);
+      window.crypto.getRandomValues(bytes);
+      return "KC-" + Array.from(bytes, n => n.toString(16).padStart(2, "0")).join("").toUpperCase();
+    }
+    return "KC-" + String(Date.now()).slice(-9);
+  }
+
+  async function submitStudentRecord() {
+    if (currentSavedRecordId) {
+      setSaveMessage("Ringkasan sesi ini sudah dihantar. Sesi baharu diperlukan untuk penghantaran seterusnya.", "info");
+      return;
+    }
+    if (!studentSubmitConsent?.checked) {
+      setSaveMessage("Penghantaran adalah pilihan. Tandakan persetujuan dahulu jika kamu mahu berkongsi dengan GBK.", "warn");
+      return;
+    }
     if (privacyIsOn()) {
-      setSaveMessage("Privasi ON. Rekod tidak disimpan. Matikan suis Privasi dahulu jika rekod ini perlu disimpan dengan kelulusan yang sesuai.", "warn");
+      setSaveMessage("Privasi ON masih aktif. Tekan Benarkan penghantaran untuk sesi ini terlebih dahulu.", "warn");
       return;
     }
-
-    const studentCode = (document.getElementById("studentId")?.value || state?.studentId || "").trim();
-    if (!studentCode) {
-      setSaveMessage("Masukkan Kod Murid dahulu. Gunakan kod samaran, bukan nama penuh.", "warn");
-      document.getElementById("studentId")?.focus();
+    if (!studentSubmitClient) {
+      setSaveMessage("Sistem penghantaran belum disambungkan. Minta bantuan Guru Kaunseling.", "danger");
       return;
     }
-    if (!state || !state.scenarioName && !state.situation) {
-      setSaveMessage("Tiada sesi untuk disimpan. Lengkapkan sesi dahulu.", "warn");
+    if (!state || !(state.scenarioName || state.situation)) {
+      setSaveMessage("Belum ada sesi lengkap untuk dihantar. Siapkan aktiviti dan cuba lagi.", "warn");
       return;
     }
-
-    state.studentId = studentCode;
-    const studentSummary = typeof buildRumusanSesi === "function" ? buildRumusanSesi() : "";
-    const teacherSummary = typeof buildTeacherSummary === "function" ? buildTeacherSummary() : "";
-    const records = loadRecords();
-    const ts = new Date().toISOString();
-    const existingIndex = currentSavedRecordId
-      ? records.findIndex(record => record.recordId === currentSavedRecordId)
-      : -1;
-
-    const record = {
-      recordId: currentSavedRecordId || makeId(),
-      ts,
-      studentId: studentCode,
-      scenarioKey: state.scenarioKey || "",
-      scenario: state.scenarioName || "",
-      situation: state.situation || "",
-      clarifyQ: state.clarifyQ || "",
-      clarifyA: state.clarifyA || "",
-      emotion: state.emotion || "",
-      pre: state.intensityPre ?? null,
-      post: state.intensityPost ?? null,
-      calming: state.calmingAction || "",
-      action: state.action || "",
-      thought: state.thought || "",
-      evidenceFor: state.evidenceFor || "",
-      evidenceAgainst: state.evidenceAgainst || "",
-      beliefThought: state.beliefThought ?? null,
-      newThought: state.newThought || "",
-      beliefNew: state.beliefNew ?? null,
-      safetyFlag: state.safetyFlag || "green",
-      gbkReview: {
-        ...(state.gbkReview || { flagged: false, categories: [], keywords: [], sources: [], detectedAt: "" }),
-        reviewed: existingIndex >= 0 ? !!(records[existingIndex].gbkReview || {}).reviewed : false,
-        reviewedAt: existingIndex >= 0 ? ((records[existingIndex].gbkReview || {}).reviewedAt || "") : ""
-      },
-      followUpPlan: state.followUpPlan || "",
-      strengthOfDay: state.strengthOfDay || "",
-      studentSummary,
-      teacherSummary,
-      status: existingIndex >= 0 ? (records[existingIndex].status || "Perlu semakan") : "Perlu semakan",
-      counselorNotes: existingIndex >= 0 ? (records[existingIndex].counselorNotes || "") : "",
-      followUpDate: existingIndex >= 0 ? (records[existingIndex].followUpDate || "") : "",
-      updatedAt: ts
+    let code = (document.getElementById("studentId")?.value || state.studentId || "").trim();
+    if (!code) code = anonymousStudentCode();
+    if (!/^[A-Za-z0-9_-]{3,24}$/.test(code)) {
+      setSaveMessage("Kod murid hanya boleh menggunakan 3–24 huruf, nombor, - atau _. Jangan guna nama penuh.", "warn");
+      return;
+    }
+    const payload = {
+      student_code: code,
+      scenario: limitedText(state.scenarioName, 90),
+      scenario_key: limitedText(state.scenarioKey, 40),
+      situation: limitedText(state.situation, 1500),
+      clarify_q: limitedText(state.clarifyQ, 600),
+      clarify_a: limitedText(state.clarifyA, 1500),
+      emotion: limitedText(state.emotion, 80),
+      intensity_pre: optionalScore(state.intensityPre),
+      intensity_post: optionalScore(state.intensityPost),
+      calming: limitedText(state.calmingAction, 500),
+      action: limitedText(state.action, 900),
+      thought: limitedText(state.thought, 1500),
+      evidence_for: limitedText(state.evidenceFor, 1200),
+      evidence_against: limitedText(state.evidenceAgainst, 1200),
+      belief_thought: optionalScore(state.beliefThought),
+      new_thought: limitedText(state.newThought, 1500),
+      belief_new: optionalScore(state.beliefNew),
+      safety_flag: ["green", "yellow", "orange", "red"].includes(state.safetyFlag) ? state.safetyFlag : "green",
+      follow_up_plan: limitedText(state.followUpPlan, 900),
+      strength_of_day: limitedText(state.strengthOfDay, 500),
+      student_summary: limitedText(typeof buildRumusanSesi === "function" ? buildRumusanSesi() : "", 12000)
     };
-
-    if (existingIndex >= 0) records[existingIndex] = { ...records[existingIndex], ...record };
-    else records.push(record);
-
-    if (!await saveCloudRecord(record)) {
-      setSaveMessage("Simpanan gagal ke pangkalan data. Rekod tidak disimpan dalam browser sebagai gantian.", "danger");
-      return;
+    saveRecordBtn.disabled = true;
+    saveRecordBtn.textContent = "⏳ Menghantar…";
+    setSaveMessage("Sedang menghantar ringkasan kepada GBK. Jangan tutup halaman ini.", "info");
+    try {
+      // Anonymous role may INSERT only. Supabase RLS and SQL column GRANTs
+      // forbid SELECT / UPDATE / DELETE and forbid submitting GBK-only notes.
+      const { error } = await studentSubmitClient.from(studentSubmissionsTable).insert(payload);
+      if (error) throw error;
+      currentSavedRecordId = "student-submitted";
+      state.studentId = code;
+      saveRecordBtn.textContent = "✅ Telah dihantar";
+      setSaveMessage(`Berjaya dihantar untuk semakan GBK. Kod rujukan murid: ${code}. Simpan kod ini jika guru memerlukannya.`, "success");
+    } catch (error) {
+      // Never log the pupil's answers or record content.
+      console.error("Kawan CBT: penghantaran gagal.", { code: error?.code, message: error?.message });
+      setSaveMessage("Penghantaran gagal. Semak internet dan pastikan SQL student_submissions telah dijalankan. Rekod tidak disimpan secara setempat.", "danger");
+      saveRecordBtn.textContent = "📨 Hantar kepada GBK";
+      saveRecordBtn.disabled = false;
     }
-
-    currentSavedRecordId = record.recordId;
-    saveRecordBtn.textContent = "✅ Rekod Disimpan";
-    setSaveMessage(`Rekod untuk ${studentCode} telah disimpan dalam pangkalan data selamat.`, "success");
   }
 
   async function saveActiveRecordEdits() {
@@ -690,7 +838,7 @@
     if (!activeRecordId) return;
     const record = findRecord(activeRecordId);
     if (!record) return;
-    const confirmDelete = window.confirm(`Padam rekod ${record.studentId || "tanpa kod"} (${formatDate(record.ts || record.createdAt)}) daripada browser ini? Tindakan ini tidak boleh dibatalkan.`);
+    const confirmDelete = window.confirm(`Padam rekod ${record.studentId || "tanpa kod"} (${formatDate(record.ts || record.createdAt)}) daripada pangkalan data awan? Tindakan ini tidak boleh dibatalkan.`);
     if (!confirmDelete) return;
     if (!await deleteCloudRecord(activeRecordId)) {
       setStatusMessage("Rekod gagal dipadam daripada pangkalan data.", "danger");
@@ -745,11 +893,13 @@
     const newStudentButton = document.getElementById("newStudent");
     if (newStudentButton) newStudentButton.textContent = kioskMode ? "Sesi Murid Seterusnya" : "Sesi Baharu";
     if (saveRecordBtn) {
-      saveRecordBtn.textContent = currentSavedRecordId ? "✅ Rekod Disimpan" : "💾 Simpan Rekod";
+      saveRecordBtn.textContent = currentSavedRecordId ? "✅ Telah dihantar" : "📨 Hantar kepada GBK";
+      saveRecordBtn.disabled = !!currentSavedRecordId;
     }
+    updateStudentSubmissionControls();
     setSaveMessage(privacyIsOn()
-      ? "Privasi ON: rekod tidak disimpan sehingga simpanan dibenarkan."
-      : "Semak rumusan dahulu. Klik Simpan Rekod jika rekod ini perlu disimpan.", "info");
+      ? "Privasi ON: tiada penghantaran automatik. Berkongsi adalah pilihan, dan memerlukan persetujuan jelas."
+      : "Semak rumusan. Tandakan kotak persetujuan sebelum memilih Hantar kepada GBK.", "info");
     deferredSummaryUntilPlan = false;
   };
 
@@ -779,7 +929,13 @@
   start = async function () {
     currentSavedRecordId = null;
     deferredSummaryUntilPlan = false;
-    if (saveRecordBtn) saveRecordBtn.textContent = "💾 Simpan Rekod";
+    if (saveRecordBtn) {
+      saveRecordBtn.textContent = "📨 Hantar kepada GBK";
+      saveRecordBtn.disabled = false;
+    }
+    if (studentSubmitConsent) studentSubmitConsent.checked = false;
+    if (privacyToggleEl) privacyToggleEl.checked = true;
+    updateStudentSubmissionControls();
     setSaveMessage("", "info");
     const startPromise = originalStart();
     if (state) state.gbkReview = { flagged: false, categories: [], keywords: [], sources: [], detectedAt: "" };
@@ -1025,8 +1181,10 @@
   }
 
   async function runAuthorizedAction(action) {
+    // Only authorised GBK may use the existing internal cloud writer; the
+    // pupil button always goes through the write-only inbox instead.
     if (action === "save") {
-      await saveCurrentRecord();
+      showAuthMessage("Gunakan Hantar kepada GBK pada rumusan murid.", "info");
       return;
     }
     if (action === "teacherSummary") {
@@ -1068,6 +1226,7 @@
 
   injectGbkStyles();
   ensureGbkFilter();
+  ensureStudentSubmissionControls();
 
   ensureAuthModal();
   authInitialization = initializeAuth();
@@ -1080,7 +1239,8 @@
   recordsSearch?.addEventListener("input", renderRecords);
   recordsStatusFilter?.addEventListener("change", renderRecords);
   backRecordsList?.addEventListener("click", showRecordList);
-  saveRecordBtn.addEventListener("click", () => requireGbkAccess("save"));
+  // Pupil submit is deliberately separate from the GBK login flow.
+  saveRecordBtn.addEventListener("click", submitStudentRecord);
   document.getElementById("tabGuru")?.addEventListener("click", event => {
     if (!window.KAWAN_SECURE_RECORDS_MODE) return;
     event.preventDefault();
@@ -1137,10 +1297,11 @@
 
   privacyToggleEl?.addEventListener("change", () => {
     if (privacyIsOn()) {
-      setSaveMessage("Privasi ON: simpanan rekod baharu dan perubahan dinyahaktifkan.", "warn");
+      setSaveMessage("Privasi ON: rekod murid tidak boleh dihantar.", "warn");
     } else {
-      setSaveMessage("Simpanan rekod awan dibenarkan selepas log masuk GBK dan jika penggunaannya telah diluluskan.", "info");
+      setSaveMessage("Privasi OFF: tiada rekod dihantar tanpa persetujuan jelas dan butang Hantar kepada GBK.", "info");
     }
+    updateStudentSubmissionControls();
   });
 
   // Never read or write sensitive session logs locally in secure mode. Old local
@@ -1151,5 +1312,5 @@
     event.stopImmediatePropagation();
     setSaveMessage("Eksport statistik setempat dinyahaktifkan dalam mod selamat. Log masuk GBK dan gunakan Eksport JSON pada skrin Rekod.", "warn");
   }, true);
-  setStatusMessage("Rekod dikunci. Hanya akaun GBK yang disahkan oleh pangkalan data boleh melihat, menyimpan, mengubah atau mengeksport rekod.", "info");
+  setStatusMessage("Rekod hanya boleh dibuka oleh GBK yang dibenarkan. Murid boleh menghantar ringkasan secara pilihan, tanpa akses membaca rekod.", "info");
 })();
