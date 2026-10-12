@@ -1,0 +1,109 @@
+/* Kawan CBT — matching styles for Rekod & Pengurusan Kes */
+.recordsModalCard { width: min(980px, 100%); max-height: 90vh; overflow-y: auto; }
+#recordsModal { z-index: 1000; }
+#summaryModal, #teacherModal { z-index: 900; }
+.recordsIntro { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.recordsPrivacyNote { margin: 6px 0 16px; padding: 12px 14px; border: 1px solid rgba(207, 164, 71, .35); border-radius: 15px; background: #fff8e8; color: #766039; font-size: 11px; line-height: 1.65; }
+.recordsPrivacyNote strong { color: #7b5b1c; }
+.recordFilters { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(145px, 180px) auto; gap: 10px; align-items: end; }
+.recordField { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.recordField label { color: var(--muted); font-size: 10px; font-weight: 800; }
+.recordField input, .recordField select, .recordField textarea { width: 100%; min-width: 0; min-height: 40px; padding: 10px 11px; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--card); font: inherit; font-size: 11px; outline: none; }
+.recordField input:focus, .recordField select:focus, .recordField textarea:focus { border-color: #8abfa6; box-shadow: var(--focus); }
+.recordField textarea { resize: vertical; }
+.exportRecordsBtn { white-space: nowrap; }
+.recordsMessage { padding: 7px 3px; color: var(--muted); font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recordsMessage[data-kind="success"] { color: var(--success); }
+.recordsMessage[data-kind="warn"] { color: var(--warning); }
+.recordsMessage[data-kind="danger"] { color: var(--danger); }
+.recordsList { display: grid; gap: 10px; margin-top: 5px; }
+.recordsEmpty { padding: 26px 16px; border: 1px dashed var(--border); border-radius: 16px; color: var(--muted); text-align: center; font-size: 12px; line-height: 1.7; }
+.recordCard { display: grid; gap: 9px; padding: 15px; border: 1px solid var(--border); border-radius: 17px; background: color-mix(in srgb, var(--card) 96%, transparent); transition: border-color .18s ease, box-shadow .18s ease; }
+.recordCard:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.recordCardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.recordCardTitle { margin: 0; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 13px; line-height: 1.45; font-weight: 900; overflow-wrap: anywhere; }
+.recordCardMeta { margin: 3px 0 0; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.recordCardSummary { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recordStatus { display: inline-flex; align-items: center; align-self: flex-start; padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); background: rgba(100,116,139,.09); font-size: 9px; font-weight: 900; white-space: nowrap; }
+.recordStatusFollow { background: #fff3d9; color: #8a641b; border-color: #f0dfb2; }
+.recordStatusActive { background: #e4f4f4; color: #287276; border-color: #cce6e7; }
+.recordStatusDone { background: #e6f5e9; color: #26734c; border-color: #cfe8d5; }
+.recordOpenBtn { justify-self: start; min-height: 36px; font-size: 10px; }
+.recordDetail { margin-top: 15px; padding-top: 16px; border-top: 1px solid var(--border); }
+.recordDetailTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+.recordDetailTitle { margin: 0 0 4px; color: var(--text); font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 900; }
+.recordDetailContent { max-height: 320px; overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-soft); color: var(--text); font-size: 11px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recordEditFields { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr); gap: 12px; margin-top: 15px; }
+.recordNotesField { grid-column: 1 / -1; }
+.recordDetailActions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+.deleteRecordBtn { color: #a33b36 !important; border-color: #eed0ca !important; }
+#saveRecordMessage { margin: 2px 4px 7px; }
+.recordFlagRow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.recordFlagBadge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border: 1px solid rgba(207, 164, 71, .45); border-radius: 999px; color: #775719; background: #fff6dd; font-size: 9px; font-weight: 900; }
+.recordFlagBadge.reviewed { border-color: #cee6d4; color: #28714c; background: #eaf7ec; }
+.recordFlagCategory { padding: 4px 7px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 9px; }
+.recordCardFlagged { border-left: 4px solid #d4a447; }
+.recordFlagNotice { margin: 8px 0; padding: 11px 12px; border: 1px solid rgba(207, 164, 71, .4); border-radius: 12px; background: #fff8e9; color: #71562b; font-size: 10px; line-height: 1.65; white-space: pre-wrap; }
+.gbkReviewBtn { border-color: rgba(207, 164, 71, .6) !important; }
+body.dark .recordsPrivacyNote, body.dark .recordFlagNotice { color: #f0dbad; background: #3d3627; border-color: #69572f; }
+body.dark .recordsPrivacyNote strong { color: #ffe5a9; }
+body.dark .recordFlagBadge { color: #efd79a; background: #443b27; border-color: #69572f; }
+body.dark .recordFlagBadge.reviewed { color: #b4e1c2; background: #2b4434; border-color: #41654c; }
+body.dark .recordStatusFollow { color: #efd79a; background: #443b27; border-color: #69572f; }
+body.dark .recordStatusActive { color: #b2e4e5; background: #284347; border-color: #3d6367; }
+body.dark .recordStatusDone { color: #b4e1c2; background: #2b4434; border-color: #41654c; }
+body.dark .recordOpenBtn { color: var(--ink-soft); }
+@media (max-width: 780px) {
+  .recordFilters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .recordSearchField { grid-column: 1 / -1; }
+  .exportRecordsBtn { justify-self: stretch; }
+}
+@media (max-width: 540px) {
+  .recordsModalCard { max-height: 95vh; }
+  .recordFilters { grid-template-columns: 1fr; }
+  .recordSearchField { grid-column: auto; }
+  .recordEditFields { grid-template-columns: 1fr; }
+  .recordNotesField { grid-column: auto; }
+  .recordCardTop, .recordDetailTop { flex-direction: column; }
+  .recordDetailActions .btn { width: 100%; }
+}
+
+/* Readable, colorful records workspace matching Wonderland theme */
+.recordsIntro { font-size: 14px; color: #627792; }
+.recordsPrivacyNote { padding: 15px 16px; border: 1.5px solid #f0d99b; border-radius: 17px; font-size: 13px; line-height: 1.75; }
+.recordFilters { gap: 12px; }
+.recordField label { color: #657a95; font-size: 13px; }
+.recordField input, .recordField select, .recordField textarea { min-height: 45px; padding: 11px 13px; border-radius: 13px; font-size: 14px; }
+.recordsMessage { font-size: 13px; }
+.recordsEmpty { padding: 30px 18px; font-size: 14px; }
+.recordCard { padding: 18px; border-radius: 19px; }
+.recordCardTitle { font-size: 16px; }
+.recordCardMeta { font-size: 12px; }
+.recordCardSummary { font-size: 14px; line-height: 1.75; }
+.recordStatus { padding: 6px 10px; font-size: 11px; }
+.recordOpenBtn { min-height: 42px; font-size: 13px; }
+.recordDetailTitle { font-size: 20px; }
+.recordDetailContent { max-height: 360px; padding: 16px; font-size: 14px; line-height: 1.8; }
+.recordFlagBadge { padding: 6px 10px; font-size: 11px; }
+.recordFlagCategory { font-size: 11px; }
+.recordFlagNotice { padding: 13px; font-size: 13px; line-height: 1.75; }
+
+
+/* Secure GBK sign-in layer */
+#gbkAuthModal { z-index: 1400; }
+.gbkAuthCard { width: min(480px, 100%); max-height: 92vh; overflow-y: auto; }
+.gbkAuthIntro { margin: 8px 0 16px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.gbkAuthForm { display: grid; gap: 12px; }
+.gbkAuthForm label { display: grid; gap: 6px; font-size: 13px; font-weight: 800; color: var(--text); }
+.gbkAuthForm input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 13px; background: var(--card); color: var(--text); font: inherit; font-size: 16px; }
+.gbkAuthForm input:focus { outline: 3px solid rgba(105, 170, 220, .24); border-color: #77aee0; }
+.gbkAuthMessage { min-height: 22px; margin: 8px 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gbkAuthMessage[data-kind="danger"] { color: #ad3434; }
+.gbkAuthMessage[data-kind="success"] { color: #19744e; }
+.gbkAuthSetup { padding: 13px 14px; border: 1px solid #f0d99b; background: #fff8e8; border-radius: 14px; color: #755b29; font-size: 13px; line-height: 1.7; }
+.gbkAuthSetup code { overflow-wrap: anywhere; }
+.gbkAuthFooter { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.gbkRecordHeaderActions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gbkAccountLabel { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+@media(max-width:540px) { .gbkAuthCard { padding: 18px; } .gbkAuthForm .btn { width: 100%; } }
+body.dark .gbkAuthSetup { color: #f0dbad; background: #3d3627; border-color: #69572f; }

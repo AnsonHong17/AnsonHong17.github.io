@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" fill="none">
+  <defs>
+    <linearGradient id="hillBack" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#C5EBD8"/><stop offset="1" stop-color="#B6DDF4"/></linearGradient>
+    <linearGradient id="hillFront" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#9ED9B7"/><stop offset="1" stop-color="#B3E5C6"/></linearGradient>
+    <linearGradient id="rainbowA" x1="155" y1="190" x2="465" y2="190" gradientUnits="userSpaceOnUse"><stop stop-color="#F5A8A9"/><stop offset=".32" stop-color="#FFD27F"/><stop offset=".66" stop-color="#A9DDBD"/><stop offset="1" stop-color="#B9B0F1"/></linearGradient>
+  </defs>
+  <!-- A soft rainbow tucked into the storybook sky -->
+  <path d="M174 234A146 146 0 0 1 466 234" stroke="#F6B5B7" stroke-width="25" stroke-linecap="round" opacity=".92"/>
+  <path d="M196 234A124 124 0 0 1 444 234" stroke="#FFD58C" stroke-width="22" stroke-linecap="round" opacity=".96"/>
+  <path d="M218 234A102 102 0 0 1 422 234" stroke="#B5E2C5" stroke-width="22" stroke-linecap="round" opacity=".98"/>
+  <path d="M240 234A80 80 0 0 1 400 234" stroke="#C8BDF6" stroke-width="21" stroke-linecap="round" opacity=".98"/>
+  <!-- fluffy clouds -->
+  <g stroke="#76A7A1" stroke-width="3.4" stroke-linejoin="round">
+    <path d="M55 110c-13 0-22-8-22-19 0-10 8-18 19-18 4-14 17-22 31-19 12 2 20 10 22 22 13-2 23 6 23 17 0 10-9 17-21 17H55Z" fill="#FFFDF7"/>
+    <path d="M480 111c-10 0-17-7-17-16 0-8 6-15 15-15 4-12 14-18 26-16 10 1 17 8 19 18 11-1 19 5 19 14 0 9-8 15-17 15h-45Z" fill="#FFFDF7"/>
+  </g>
+  <g fill="#ECA4A4"><circle cx="71" cy="91" r="3.5"/><circle cx="93" cy="91" r="3.5"/></g>
+  <path d="M78 99q4 4 8 0" stroke="#4E766E" stroke-width="2.5" stroke-linecap="round"/>
+  <g fill="#F7C95F" stroke="#C89438" stroke-width="2.2" stroke-linejoin="round">
+    <path d="m150 63 5 12 12 5-12 5-5 12-5-12-12-5 12-5 5-12Z"/>
+    <path d="m492 151 3.5 8.5 8.5 3.5-8.5 3.5-3.5 8.5-3.5-8.5-8.5-3.5 8.5-3.5 3.5-8.5Z"/>
+  </g>
+  <path d="m557 49 3.5 8 8 3.5-8 3.5-3.5 8-3.5-8-8-3.5 8-3.5 3.5-8Z" fill="#C7B7F4" stroke="#8D7BCE" stroke-width="2"/>
+  <circle cx="140" cy="154" r="5" fill="#F4A7A8"/><circle cx="519" cy="202" r="5" fill="#F4A7A8"/>
+  <!-- little house on the left -->
+  <g stroke="#537E6D" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M43 244 89 205 136 244v54H43v-54Z" fill="#FFF8E8"/>
+    <path d="m34 245 55-48 56 48" fill="#F7AD9F"/>
+    <path d="M77 298v-32q0-13 12-13t12 13v32" fill="#B3DDF0"/>
+    <rect x="49" y="253" width="18" height="18" rx="4" fill="#B8DFF2"/>
+    <path d="M58 253v18M49 262h18" stroke-width="2.4"/>
+  </g>
+  <circle cx="87" cy="221" r="4" fill="#F4C65C"/><circle cx="105" cy="221" r="4" fill="#F4C65C"/>
+  <!-- tree and tiny mushroom garden on the right -->
+  <g stroke="#527D68" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M548 285v-62" stroke="#B98256" stroke-width="12"/>
+    <circle cx="547" cy="202" r="32" fill="#9AD6B2"/>
+    <circle cx="525" cy="215" r="22" fill="#B7E5C5"/>
+    <circle cx="567" cy="217" r="22" fill="#B4DFF0"/>
+  </g>
+  <circle cx="536" cy="195" r="4" fill="#FFF7E9"/><circle cx="559" cy="207" r="4" fill="#FFF7E9"/>
+  <g stroke="#B36C6B" stroke-width="3" stroke-linejoin="round">
+    <path d="M462 289c1-16 13-26 26-23 10 2 16 11 16 23h-42Z" fill="#F3A3A5"/>
+    <path d="M476 288v20m13-20v20" stroke="#FFF5E9" stroke-width="8" stroke-linecap="round"/>
+    <path d="M456 309h54" stroke="#8AAE78" stroke-width="4" stroke-linecap="round"/>
+    <path d="M581 306c0-10 7-17 16-17s16 7 16 17" fill="#F8C864"/>
+    <path d="M590 306v13m14-13v13" stroke="#FFF5E9" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <!-- rolling hills and stepping stones -->
+  <path d="M0 282c59-36 101-25 154-12 53 14 80-8 133-13 72-7 104 34 171 28 65-5 110-35 182-4v79H0v-78Z" fill="url(#hillBack)"/>
+  <path d="M0 309c77-28 124-2 191 8 72 11 116-24 182-14 77 12 145 34 267-5v62H0v-51Z" fill="url(#hillFront)"/>
+  <g stroke="#87BCA0" stroke-width="3" fill="#FFF5D8">
+    <ellipse cx="263" cy="318" rx="20" ry="8" transform="rotate(-7 263 318)"/>
+    <ellipse cx="307" cy="326" rx="20" ry="8" transform="rotate(4 307 326)"/>
+    <ellipse cx="351" cy="321" rx="20" ry="8" transform="rotate(-5 351 321)"/>
+  </g>
+  <!-- flowers along the path -->
+  <g stroke="#649979" stroke-width="3" stroke-linecap="round">
+    <path d="M171 333v-22m0 12-8-5m8 0 8-6"/>
+    <path d="M421 337v-25m0 13-8-5m8 0 8-6"/>
+    <path d="M606 331v-23m0 12-7-5m7 0 7-5"/>
+  </g>
+  <g fill="#FFF7E8" stroke="#D5A24A" stroke-width="2">
+    <circle cx="171" cy="307" r="5"/><circle cx="163" cy="312" r="5"/><circle cx="179" cy="312" r="5"/><circle cx="166" cy="320" r="5"/><circle cx="176" cy="320" r="5"/>
+    <circle cx="421" cy="306" r="5"/><circle cx="413" cy="311" r="5"/><circle cx="429" cy="311" r="5"/><circle cx="416" cy="319" r="5"/><circle cx="426" cy="319" r="5"/>
+    <circle cx="606" cy="301" r="5"/><circle cx="599" cy="306" r="5"/><circle cx="613" cy="306" r="5"/><circle cx="601" cy="313" r="5"/><circle cx="611" cy="313" r="5"/>
+  </g>
+</svg>
