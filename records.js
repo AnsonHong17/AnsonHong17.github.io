@@ -837,6 +837,7 @@
           <label for="gbkAuthEmail">Emel akaun GBK<input id="gbkAuthEmail" type="email" autocomplete="username" required placeholder="emel rasmi sekolah" /></label>
           <label for="gbkAuthPassword">Kata laluan<input id="gbkAuthPassword" type="password" autocomplete="current-password" required placeholder="Kata laluan" /></label>
           <button id="gbkAuthSubmit" class="btn btn-primary" type="submit">Log masuk dengan selamat</button>
+          <a href="reset-password.html" style="justify-self:start;color:#217c88;font-size:14px;font-weight:800;text-decoration:underline;text-underline-offset:3px">Lupa kata laluan?</a>
         </form>
         <p id="gbkAuthMessage" class="gbkAuthMessage" role="status" aria-live="polite"></p>
         <p class="gbkAuthFooter">Tiada butang daftar akaun awam. Akaun perlu diwujudkan oleh pentadbir Supabase dan diluluskan dalam senarai akses GBK.</p>
