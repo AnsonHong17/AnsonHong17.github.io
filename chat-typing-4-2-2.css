@@ -1,0 +1,55 @@
+/* Kawan CBT 4.2.2 — Gentle chat typing, a visual effect only. */
+.kawan-typing-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  flex-wrap: wrap;
+  min-height: 28px;
+  color: #36867b;
+  font-size: .85em;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+.kawan-typing-label { display: inline-block; }
+.kawan-typing-status .typing { padding: 0; gap: 5px; }
+.kawan-typing-status .typing .dot {
+  width: 7px;
+  height: 7px;
+  background: #319b91;
+  box-shadow: 0 2px 4px #2b95722f;
+}
+.kawan-animated-message .bubble { min-width: 155px; }
+.kawan-stream-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.kawan-stream-text.is-streaming::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: .95em;
+  margin-inline-start: 2px;
+  vertical-align: -.13em;
+  border-radius: 2px;
+  background: #339e8d;
+  animation: kawan-caret-blink .8s step-end infinite;
+}
+@keyframes kawan-caret-blink { 50% { opacity: .12; } }
+.kawan-skip-typing {
+  padding: 6px 11px;
+  border: 1px solid #c9e3ed;
+  border-radius: 999px;
+  background: #effaff;
+  color: #176f80;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+.kawan-skip-typing:hover { background: #d9f3fa; transform: translateY(-1px); }
+.kawan-skip-typing:focus-visible { outline: 3px solid #3d88d8; outline-offset: 3px; }
+body.dark .kawan-typing-status { color: #8ee4d1; }
+body.dark .kawan-skip-typing { color: #cdf8f6; background: #234962; border-color: #4b819a; }
+body.dark .kawan-stream-text.is-streaming::after { background: #89e5d1; }
+@media (prefers-reduced-motion: reduce) {
+  .kawan-stream-text.is-streaming::after, .kawan-typing-status .typing .dot { animation: none !important; }
+  .kawan-skip-typing { transition: none !important; }
+}

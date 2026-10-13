@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="620" viewBox="0 0 1600 620" role="img" aria-label="Peta fantasi dengan awan, bukit, sungai dan jejak berliku">
+ <defs>
+  <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#a9dafc"/><stop offset=".54" stop-color="#dbf4fd"/><stop offset="1" stop-color="#f8f4d9"/></linearGradient>
+  <linearGradient id="grass" x1="0" x2=".8" y1="0" y2="1"><stop stop-color="#b0e8b6"/><stop offset="1" stop-color="#7fd1a7"/></linearGradient>
+  <linearGradient id="water" x1="0" x2="1"><stop stop-color="#a0e2f9"/><stop offset="1" stop-color="#7bc9e9"/></linearGradient>
+  <linearGradient id="lilacHill" x1="0" x2="1"><stop stop-color="#d8cafd"/><stop offset="1" stop-color="#e7dffb"/></linearGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="18"/></filter>
+  <pattern id="sprinkles" width="96" height="89" patternUnits="userSpaceOnUse"><circle cx="14" cy="16" r="2" fill="#ffffff" opacity=".5"/><circle cx="70" cy="73" r="2.5" fill="#fff5d7" opacity=".5"/></pattern>
+  <g id="cl"><path d="M8 42c-17 0-17-25 0-27 3-17 31-19 40-5 14-9 33 0 33 16 20 0 21 28 0 28H8Z" fill="#fff" stroke="#fff" stroke-width="3"/></g>
+  <g id="tree"><path d="M14 51V22" stroke="#a77a5e" stroke-width="7" stroke-linecap="round"/><circle cx="14" cy="21" r="23" fill="#75bf9c"/><circle cx="-2" cy="30" r="16" fill="#94d4a4"/><circle cx="31" cy="31" r="17" fill="#6ebb9e"/><path d="M3 18c6-12 17-14 24-11" stroke="#d9f9d5" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+  <g id="flower"><path d="M0 0v19" stroke="#439d7b" stroke-width="2"/><circle cx="0" cy="-6" r="5" fill="#fff"/><circle cx="-6" cy="0" r="5" fill="#fff"/><circle cx="6" cy="0" r="5" fill="#fff"/><circle cx="0" cy="6" r="5" fill="#fff"/><circle cx="0" cy="0" r="4" fill="#f5c567"/></g>
+  <g id="star"><path d="M0-14 4-4 14 0 4 4 0 14-4 4-14 0-4-4Z" fill="#fff0a7" stroke="#f3bf69" stroke-width="2"/></g>
+ </defs>
+ <rect width="1600" height="620" fill="url(#sky)"/>
+ <ellipse cx="1290" cy="76" rx="250" ry="115" fill="#fffbd6" opacity=".55" filter="url(#glow)"/>
+ <circle cx="1270" cy="93" r="55" fill="#ffeaa4" opacity=".8"/>
+ <path d="M-120 314C106 174 189 264 369 213s325-71 514 5 358 42 497-21 259-10 360 56v374H-120Z" fill="url(#lilacHill)" opacity=".52"/>
+ <path d="M-50 343C148 259 282 315 423 257s256-20 396 38 332-15 482-55 256-1 372 68v312H-50Z" fill="#bde8e3"/>
+ <path d="M-80 431C151 300 363 390 528 346c174-47 257-39 412 33s317-79 497-63 200 42 286 73v231H-80Z" fill="url(#grass)"/>
+ <path d="M-80 540C226 421 280 556 512 481s400-26 568-31 355 59 593-24v196H-80Z" fill="#8bd3a8"/>
+ <path d="M-80 595c203-89 394-37 507-48 200-21 295 39 478-19s482-22 757-31v123H-80Z" fill="#6bc6a1" opacity=".74"/>
+ <path d="M-40 584c258-139 317-44 563-73 166-19 177-99 330-73 179 30 267 73 441 8 104-39 200-27 354 17" fill="none" stroke="#ecffdc" stroke-width="52" opacity=".5"/>
+ <path d="M-40 584c258-139 317-44 563-73 166-19 177-99 330-73 179 30 267 73 441 8 104-39 200-27 354 17" fill="none" stroke="#a8e6c9" stroke-width="23" opacity=".7"/>
+ <!-- winding brook -->
+ <path d="M-40 542C218 437 305 617 586 546S946 463 1084 521s321 21 576-67" stroke="#f8ffff" stroke-width="85" fill="none" opacity=".7"/>
+ <path d="M-40 542C218 437 305 617 586 546S946 463 1084 521s321 21 576-67" stroke="url(#water)" stroke-width="70" fill="none"/>
+ <path d="M-40 542C218 437 305 617 586 546S946 463 1084 521s321 21 576-67" stroke="#e8fdff" stroke-width="5" stroke-dasharray="26 34" fill="none" opacity=".75"/>
+ <!-- dashed map trail -->
+ <path d="M290 265C444 102 685 155 775 304S1117 449 1329 276" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-dasharray="2 21" opacity=".88"/>
+ <path d="M290 265C444 102 685 155 775 304S1117 449 1329 276" fill="none" stroke="#e5b77b" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 21" opacity=".7"/>
+ <!-- whimsical clouds -->
+ <use href="#cl" transform="translate(107 82) scale(1.15)" opacity=".87"/>
+ <use href="#cl" transform="translate(562 36) scale(.64)" opacity=".86"/>
+ <use href="#cl" transform="translate(1004 102) scale(.9)" opacity=".79"/>
+ <use href="#cl" transform="translate(1420 54) scale(.67)" opacity=".91"/>
+ <use href="#cl" transform="translate(725 180) scale(.51)" opacity=".64"/>
+ <!-- illustration touches -->
+ <g transform="translate(105 370)"><use href="#tree" transform="scale(1.4)"/><use href="#tree" transform="translate(75 24) scale(.86)"/></g>
+ <g transform="translate(1372 378)"><use href="#tree" transform="scale(1.24)"/><use href="#tree" transform="translate(83 22) scale(.85)"/></g>
+ <use href="#tree" transform="translate(749 369) scale(.74)"/>
+ <use href="#tree" transform="translate(806 358) scale(.92)"/>
+ <use href="#tree" transform="translate(902 383) scale(.56)"/>
+ <use href="#flower" transform="translate(278 441) scale(1.2)"/>
+ <use href="#flower" transform="translate(349 488) scale(.8)"/>
+ <use href="#flower" transform="translate(619 398) scale(.9)"/>
+ <use href="#flower" transform="translate(1054 392) scale(1.1)"/>
+ <use href="#flower" transform="translate(1323 426) scale(1.3)"/>
+ <use href="#flower" transform="translate(1510 477) scale(.8)"/>
+ <use href="#star" transform="translate(409 87) scale(.8)"/>
+ <use href="#star" transform="translate(906 65) scale(1.1)"/>
+ <use href="#star" transform="translate(1360 177) scale(.8)"/>
+ <g opacity=".6" fill="#fff"><circle cx="118" cy="232" r="6"/><circle cx="1130" cy="85" r="5"/><circle cx="595" cy="165" r="4"/><circle cx="1535" cy="291" r="4"/></g>
+ <rect width="1600" height="620" fill="url(#sprinkles)" opacity=".45"/>
+</svg>

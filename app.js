@@ -1,5 +1,5 @@
 /*
- * Kawan CBT — Smart v3.4 consolidated edition
+ * Kawan CBT — Smart v4.2 contextual conversation edition
  * Full replacement for app.js
  * Upgrade layers: v3.0 safety-aware text checks; v3.1 session memory;
  * v3.2 answer-led follow-up; v3.3 contextual reflection/actions; v3.4 regression hooks
@@ -59,6 +59,7 @@ let longMode = true;
 let ttsEnabled = false;
 let summaryView = "murid";
 let state;
+let processingInput = false;
 
 const INPUT_SOURCE = { TYPED: "typed", OPTION: "option" };
 const LS_FAVS = "cbt_favs_final";
@@ -69,6 +70,27 @@ const BOT_NAME = "Kawan CBT";
 const BOT_OPENING = "Hai, saya Kawan CBT. Kalau hati kamu rasa berat, kita boleh mula perlahan-lahan bersama.";
 const BOT_CLOSING = "Hari ini kamu sudah buat satu langkah kecil yang berani. 🌈";
 const BOT_STRENGTH_LABEL = "Kekuatan hari ini";
+
+// v4.2 is a local intent/context analyzer; typed answers take priority over generic option templates.
+const SMART42 = (typeof window !== "undefined" && window.KawanSmart42) || null;
+const SMART43 = (typeof window !== "undefined" && window.KawanSmart43) || null;
+function smart42Analyze(text) {
+  if (!SMART42 || !text || String(text).startsWith("__")) return null;
+  return SMART42.analyze(text, {issue: state?.issueType || "other"});
+}
+function smart42Echo(text) { return SMART42?.contextualReflection(text, state) || ""; }
+function smart42Score(text) {
+  if (SMART42) return SMART42.parseNumber(text);
+  const n = Number(String(text).trim());
+  return Number.isInteger(n) && n >= 0 && n <= 10 ? n : null;
+}
+function smarterSafetyLevel(text) {
+  const baseline = safetyLevelFromText(text);
+  const layer = smart42Analyze(text);
+  const levels = {green:0,yellow:1,orange:2,red:3};
+  // Do not downgrade warnings from either detector.
+  return levels[layer?.risk || "green"] > levels[baseline] ? layer.risk : baseline;
+}
 
 const SCHOOL_HELP = {
   safePlace: "Bilik Kaunseling / Pejabat Sekolah",
@@ -241,36 +263,150 @@ function addMsg(text, who = "bot", tag = null) {
   }
   row.appendChild(wrapEl);
   chat.appendChild(row);
+  window.dispatchEvent(new CustomEvent("kawan:chat-event", { detail: {role:who, text:String(text||"").slice(0,180), tag:tag?.kind||"", safety:!!state?.safetySupportMode} }));
   chat.scrollTop = chat.scrollHeight;
   if (who === "bot") speak(String(text ?? ""));
 }
-function botTyping(delay = 260) {
-  return new Promise(resolve => {
-    if (!chat) return resolve();
+// ====== Kawan CBT 4.2.2: gentle, accessible typing experience ======
+// A visual-only effect; messages and support decisions are still generated locally.
+// Explicit safety warnings are displayed immediately, never delayed for animation.
+let chatGeneration = 0;
+let activeBotAnimation = null;
+const CHAT_CANCELLED = "KAWAN_CHAT_SESSION_RESTARTED";
+function isChatCancelled(error) { return error?.message === CHAT_CANCELLED; }
+function ignoreChatCancelled(error) { if (!isChatCancelled(error)) console.error(error); }
+function cancelBotAnimation() {
+  if (activeBotAnimation) activeBotAnimation.cancel();
+}
+function prefersLessMotion() {
+  return document.body.classList.contains("a11y-less-motion") || (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+function messageGraphemes(text) {
+  const t = String(text ?? "");
+  if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+    return Array.from(new Intl.Segmenter("ms", {granularity:"grapheme"}).segment(t), part => part.segment);
+  }
+  return Array.from(t); // Unicode code points when Intl.Segmenter is unavailable.
+}
+function botSay(text, tag = null, delay = 260) {
+  const message = String(text ?? "");
+  if (!chat) return Promise.resolve();
+  // Critical advice (including immediate safety support) must not wait for a decorative animation.
+  if (tag?.kind === "warn" || state?.safetySupportMode || prefersLessMotion()) {
+    addMsg(message, "bot", tag);
+    return Promise.resolve();
+  }
+  // The displayed wording is unchanged; the animation only affects how it appears.
+  return new Promise((resolve, reject) => {
+    const generation = chatGeneration;
     const row = document.createElement("div");
-    row.className = "msg bot";
+    row.className = "msg bot kawan-animated-message";
     row.appendChild(makeAvatar("bot"));
     const wrapEl = document.createElement("div");
     wrapEl.className = "bubbleWrap";
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    const typing = document.createElement("div");
+    if (tag) {
+      const t = document.createElement("div");
+      t.className = `tag ${tag.kind}`;
+      t.textContent = tag.text;
+      bubble.appendChild(t);
+    }
+    const status = document.createElement("div");
+    status.className = "kawan-typing-status";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-label", "Kawan sedang menaip");
+    const statusLabel = document.createElement("span");
+    statusLabel.className = "kawan-typing-label";
+    statusLabel.textContent = "Kawan sedang menaip";
+    status.appendChild(statusLabel);
+    const typing = document.createElement("span");
     typing.className = "typing";
-    typing.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-    bubble.appendChild(typing);
+    typing.setAttribute("aria-hidden", "true");
+    for (let n = 0; n < 3; n++) {
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      typing.appendChild(dot);
+    }
+    status.appendChild(typing);
+    bubble.appendChild(status);
+    const content = document.createElement("div");
+    content.className = "kawan-stream-text";
+    content.setAttribute("aria-live", "off");
+    const actions = document.createElement("div");
+    actions.className = "bubbleActions";
+    const skip = document.createElement("button");
+    skip.type = "button";
+    skip.className = "kawan-skip-typing";
+    skip.textContent = "⏩ Papar sekarang";
+    skip.setAttribute("aria-label", "Papar mesej penuh sekarang");
+    actions.appendChild(skip);
     wrapEl.appendChild(bubble);
+    wrapEl.appendChild(actions);
     row.appendChild(wrapEl);
     chat.appendChild(row);
-    chat.scrollTop = chat.scrollHeight;
-    setTimeout(() => {
-      if (chat.contains(row)) chat.removeChild(row);
+    window.dispatchEvent(new CustomEvent("kawan:chat-event", { detail:{role:"bot", text:"", tag:tag?.kind||"", safety:!!state?.safetySupportMode} }));
+    scrollBottom();
+    optionsEl?.querySelectorAll("button").forEach(button => { button.disabled = true; });
+
+    let waitTimer = null, frame = null, completed = false, startedAt = 0;
+    const pieces = messageGraphemes(message);
+    const thinkingMs = Math.min(1100, Math.max(520, Number(delay) + 360 + pieces.length * 1.2));
+    const revealMs = Math.min(3400, Math.max(850, 520 + pieces.length * 17));
+    function cleanup() {
+      if (waitTimer !== null) clearTimeout(waitTimer);
+      if (frame !== null) cancelAnimationFrame(frame);
+      if (activeBotAnimation === controller) activeBotAnimation = null;
+      if (!processingInput) optionsEl?.querySelectorAll("button").forEach(button => { button.disabled = false; });
+    }
+    function finish() {
+      if (completed || generation !== chatGeneration) return;
+      completed = true;
+      cleanup();
+      status.remove();
+      if (!content.isConnected) bubble.appendChild(content);
+      content.classList.remove("is-streaming");
+      content.textContent = message;
+      content.setAttribute("aria-live", "polite");
+      const spk = document.createElement("button");
+      spk.type = "button";
+      spk.className = "spkBtn";
+      spk.textContent = "🔊 Dengar";
+      spk.addEventListener("click", () => speak(message));
+      actions.replaceChildren(spk);
+      scrollBottom();
+      speak(message);
       resolve();
-    }, delay);
+    }
+    function cancel() {
+      if (completed) return;
+      completed = true;
+      cleanup();
+      row.remove();
+      reject(new Error(CHAT_CANCELLED));
+    }
+    const controller = { cancel, skip: finish };
+    activeBotAnimation = controller;
+    skip.addEventListener("click", finish);
+    function tick(timestamp) {
+      if (completed || generation !== chatGeneration) return;
+      if (!startedAt) startedAt = timestamp;
+      const fraction = Math.min(1, (timestamp - startedAt) / revealMs);
+      const count = Math.min(pieces.length, Math.max(1, Math.ceil(fraction * pieces.length)));
+      content.textContent = pieces.slice(0, count).join("");
+      // Follow the chat only when the user is already at the bottom.
+      if (chat.scrollHeight - chat.scrollTop - chat.clientHeight < 145) scrollBottom();
+      if (fraction >= 1) finish();
+      else frame = requestAnimationFrame(tick);
+    }
+    waitTimer = setTimeout(() => {
+      if (completed || generation !== chatGeneration) return;
+      status.remove();
+      bubble.appendChild(content);
+      content.classList.add("is-streaming");
+      frame = requestAnimationFrame(tick);
+    }, thinkingMs);
   });
-}
-async function botSay(text, tag = null, delay = 260) {
-  await botTyping(delay);
-  addMsg(text, "bot", tag);
 }
 function setOptions(title, options) {
   if (!optionsEl) return;
@@ -282,6 +418,7 @@ function setOptions(title, options) {
     btn.className = "optBtn";
     btn.textContent = opt.label;
     btn.addEventListener("click", () => handleUserInput(opt.value ?? opt.label, INPUT_SOURCE.OPTION));
+    btn.disabled = processingInput;
     optionsEl.appendChild(btn);
   });
 }
@@ -293,10 +430,10 @@ function setModeUI() {
   const theme = document.body.classList.contains("dark") ? "Gelap" : "Ceria";
   const verbose = shouldBeLong() ? "Mendalam" : "Ringkas";
   modePill.textContent = `Mode: ${kioskMode ? "Kiosk" : "Normal"} • ${verbose} • Tema: ${theme} • ${privacyOn() ? "Privasi ON" : "Privasi OFF"}`;
-  hintPill.textContent = kioskMode ? "Tip: guna butang" : "Tip: boleh taip";
+  hintPill.textContent = kioskMode ? "Tip: guna butang" : "Smart 4.3 · cerita sendiri dialu-alukan";
 }
 function setProgress(step) {
-  let s = step === 4.5 || step === 4.6 || step === 4.7 ? 5 : step;
+  let s = [4.5, 4.6, 4.7, 4.9, 4.91].includes(step) ? 5 : step;
   const shown = clamp(Math.round(Number(s) || 0), 0, 11);
   if (stepPill) stepPill.textContent = `Langkah: ${shown}/11`;
   if (progressBar) progressBar.style.width = `${(shown / 11) * 100}%`;
@@ -314,6 +451,8 @@ function explainForStep(step) {
     4.6: "Semak keselamatan kamu dahulu.",
     4.8: "Satu soalan susulan berdasarkan jawapan kamu.",
     4.7: "Kenal pasti orang dewasa yang boleh membantu.",
+    4.9: "Semak sama ada bantuan telah benar-benar diminta atau diterima.",
+    4.91: "Pilih langkah sokongan yang selamat dan boleh dibuat sekarang.",
     5: "Cari fikiran yang paling kuat muncul.",
     6: "Lihat apa yang membuat fikiran itu terasa betul.",
     7: "Lihat juga sudut lain yang mungkin membantu.",
@@ -408,6 +547,7 @@ function rememberSmartAnswer(step, answer, source) {
   if (state.smartMemory.turns.length > 40) state.smartMemory.turns.shift();
   state.smartMemory.byStep[key] = item.answer;
   state.smartMemory.lastAnswer = item.answer;
+  if (SMART43 && source === INPUT_SOURCE.TYPED) SMART43.observe(state.smart43Memory, answer, step, source);
 }
 
 function getRecentStudentAnswers(limit = 4) {
@@ -795,7 +935,7 @@ async function continueAfterSmartFollowUp() {
   state.dynamicRetryCount = 0;
   setProgress(4.8);
   await botSay(simplify(wrap([
-    smartAnswerReflection(state.issueType, state.clarifyA),
+    SMART42?.nextReflection(state.smart42Situation, state.clarifyA) || smartAnswerReflection(state.issueType, state.clarifyA),
     next.question,
     "Pilih jawapan yang paling dekat. Kamu juga boleh taip sendiri atau langkau soalan ini."
   ])), { kind: "info", text: "Soalan susulan berdasarkan jawapan kamu" });
@@ -881,10 +1021,18 @@ function smartSituationReflection() {
   };
   const recent = state.dynamicFollowUpA ? `Kamu juga berkongsi: “${shorten(state.dynamicFollowUpA, 95)}”.` : "";
   const clarify = state.clarifyA && !state.clarifyReflectionShown ? smartAnswerReflection(state.issueType, state.clarifyA) : "";
+  if (state.smart42Situation?.specificity > 0) {
+    const contextual = smart42Echo(state.smart42Situation);
+    const a = state.clarifyA && !state.clarifyReflectionShown
+      ? (SMART42?.nextReflection(state.smart42Situation, state.clarifyA) || clarify) : "";
+    return [contextual, a, recent].filter(Boolean).join("\n");
+  }
   return [openings[state.issueType] || openings.other, t ? `Cerita kamu: “${t}”.` : "", clarify, recent].filter(Boolean).join("\n");
 }
 
 function smartThoughtQuestion() {
+  const dynamic = SMART42?.thoughtQuestion(state.smart42Situation);
+  if (dynamic) return dynamic;
   const a = normalize(state.clarifyA || "");
   if (state.issueType === "friend") return "Apabila kawan tidak mengajak kamu bermain atau tidak memberi respons seperti yang kamu harapkan, apa yang kamu mula fikir tentang diri kamu atau hubungan kamu dengan mereka?";
   if (state.issueType === "exam" && (a.includes("topik") || a.includes("tak faham"))) return "Bila kamu berdepan topik yang susah, apa yang kamu fikir tentang kemampuan kamu?";
@@ -974,7 +1122,15 @@ function safetyLevelFromText(text) {
 
   const selfHarmSignal = /\b(?:tak nak hidup|tak mahu hidup|nak mati|mahu mati|nak bunuh diri|mahu bunuh diri|cuba bunuh diri|bunuh diri sekarang|nak cederakan diri|mahu cederakan diri|potong diri|gantung diri|cedera diri|want to die|don't want to live|do not want to live|kill myself|suicide|self[- ]?harm|hurt myself|cut myself|hang myself)\b/.test(original);
   if (selfHarmSignal) {
-    if (isExplicitSelfHarmDenial(original) && !/\b(?:tak nak hidup|tak mahu hidup|nak mati|mahu mati)\b/.test(original)) return "orange";
+    if (isExplicitSelfHarmDenial(original) && !/\b(?:tak nak hidup|tak mahu hidup|nak mati|mahu mati)\b/.test(original)) {
+      // A clear denial is not, by itself, a disclosure of immediate intent.
+      // Remove only the denied phrase, then still check other risk statements.
+      const remaining = original
+        .replace(/\b(?:saya|aku)\s+(?:tak|tidak|bukan|belum)\s+(?:mahu|nak|akan|berniat|terfikir untuk)\s+(?:bunuh diri|mencederakan diri|cedera diri|potong diri|gantung diri)\b/g, " ")
+        .replace(/\b(?:i|i'm|i am)\s+(?:do not|don't|will not|won't)\s+(?:want to )?(?:kill myself|hurt myself|cut myself|harm myself)\b/g, " ")
+        .trim();
+      return remaining === original ? "yellow" : safetyLevelFromText(remaining);
+    }
     return "red";
   }
 
@@ -1139,6 +1295,8 @@ function resetState() {
     detectedIssues: [], additionalIssues: [], clarifyRetryCount: 0,
     emotionRetryCount: 0, noCurrentIssue: false,
     safeNow: "", trustedPerson: "", safetySupportMode: false,
+    safeNowStatus: "unknown", helpStatus: "not_checked", helpReceivedSelfReported: false,
+    safetyActionStatus: "not_set", safetyNeedsHumanReview: false,
     thought: "", distortion: null, evidenceFor: "", evidenceAgainst: "",
     beliefThought: null, newThought: "", beliefNew: null,
     calmingAction: "", action: "", lastInputSource: INPUT_SOURCE.OPTION,
@@ -1146,7 +1304,11 @@ function resetState() {
     summarySaved: false, helpScriptOriginStep: null, awaitingTypedField: null,
     smartMemory: { turns: [], byStep: {} },
     dynamicFollowUpQuestion: "", dynamicFollowUpA: "", dynamicRetryCount: 0,
-    lastSafetyDisclosure: "", interventionReason: "", clarifyReflectionShown: false
+    lastSafetyDisclosure: "", interventionReason: "", clarifyReflectionShown: false,
+    smart42Situation: null, smart42LastAnswer: null,
+    smart42ScoreRetry: 0, smart42BeliefRetry: 0, smart42PreFilledSituation: false,
+    smart42CorrectionCount: 0,
+    smart43Memory: SMART43 ? SMART43.create() : null
   };
 }
 
@@ -1163,6 +1325,7 @@ function showScenarioPrompt() {
   setProgress(0);
 }
 async function scenarioSelect(key) {
+  if (activeBotAnimation) return;
   const scn = SCENARIOS[key] || SCENARIOS.other;
   state.scenarioKey = key;
   state.scenarioName = scn.name;
@@ -1203,7 +1366,11 @@ async function askEmotionClarification() {
 }
 
 async function askSmartFollowUp() {
-  const data = smartFollowUpData(state.issueType);
+  const advanced = SMART43?.chooseFollowUp(state, state.smart43Memory) || SMART42?.followUp(state.smart42Situation);
+  const data = advanced ? {
+    question: advanced.question,
+    options: advanced.options.map(x => ({label:x, value:x}))
+  } : smartFollowUpData(state.issueType);
   state.clarifyRetryCount = 0;
   state.clarifyQ = data.question;
   state.step = 4.5;
@@ -1219,6 +1386,7 @@ async function askSmartFollowUp() {
 }
 async function startSafetySupportFlow() {
   state.safetySupportMode = true;
+  state.safetyNeedsHumanReview = true;
   state.step = 4.6;
   setProgress(4.6);
   await botSay(simplify(wrap([
@@ -1227,10 +1395,94 @@ async function startSafetySupportFlow() {
     "Saya nak pastikan keselamatan kamu. Adakah kamu rasa selamat sekarang, di tempat kamu berada?"
   ])), { kind: "warn", text: "Semak keselamatan" });
   setOptions("Pilih jawapan:", [
-    { label: "✅ Ya, saya rasa selamat", value: "Ya, saya rasa selamat sekarang" },
-    { label: "⚠️ Tidak, saya tak rasa selamat", value: "Tidak, saya tak rasa selamat sekarang" },
-    { label: "🤔 Saya tak pasti", value: "Saya tak pasti" }
+    { label: "✅ Ya, saya rasa selamat sekarang", value: "__safety_safe__" },
+    { label: "⚠️ Tidak, saya tidak selamat sekarang", value: "__safety_unsafe__" },
+    { label: "🤔 Saya belum pasti", value: "__safety_unsure__" }
   ]);
+}
+// ====== Safety support: asking for help is NOT receiving help ======
+// This is an assisted self-help prompt, NOT an emergency response service.
+// No SMS, email or staff notification is sent by these steps.
+function safetyAdultOptions() {
+  return [
+    { label: "Cikgu kelas", value: "__adult_class_teacher__" },
+    { label: "Guru Bimbingan dan Kaunseling", value: "__adult_gbk__" },
+    { label: "Guru bertugas / pentadbir", value: "__adult_duty__" },
+    { label: "Ahli keluarga yang saya rasa selamat bersama", value: "__adult_family__" },
+    { label: "Saya belum pasti", value: "__adult_unsure__" }
+  ];
+}
+const SAFETY_ADULT_VALUES = {
+  __adult_class_teacher__: "Cikgu kelas",
+  __adult_gbk__: "Guru Bimbingan dan Kaunseling",
+  __adult_duty__: "Guru bertugas / pentadbir sekolah",
+  __adult_family__: "Ahli keluarga yang dipercayai",
+  __adult_unsure__: "Belum pasti"
+};
+function classifySafetyNow(raw) {
+  if (raw === "__safety_safe__") return "safe";
+  if (raw === "__safety_unsafe__") return "unsafe";
+  if (raw === "__safety_unsure__") return "unsure";
+  const t = normalize(raw);
+  if (/^(?:ya|yes|selamat|saya selamat|saya rasa selamat|saya okay|saya ok|i am safe|i feel safe)(?: sekarang)?[.!]?$/i.test(t)) return "safe";
+  if (/(?:tak|tidak|bukan|belum|kurang|x)\s+(?:rasa\s+)?selamat|takut\s+(?:balik|jumpa)|(?:not|don't feel|do not feel|unsafe)\s+safe|bahaya sekarang|orang\s+itu\s+ada\s+dekat/i.test(t)) return "unsafe";
+  if (/tak pasti|tidak pasti|tak tahu|tidak tahu|entah|unsure|not sure|don't know|do not know|belum pasti/i.test(t)) return "unsure";
+  return "unknown";
+}
+async function askSafetyAdult() {
+  state.step = 4.7;
+  setProgress(4.7);
+  await botSay(simplify("Siapa orang dewasa yang kamu rasa SELAMAT untuk mendapatkan bantuan? Jika seorang dewasa terlibat atau tidak membantu, pilih orang lain."), {kind:"info",text:"Pilih orang yang selamat"});
+  setOptions("Pilih orang dewasa yang sesuai:", safetyAdultOptions());
+}
+async function askRealHelpStatus() {
+  state.step = 4.9;
+  setProgress(4.9);
+  await botSay(simplify(wrap([
+    "Memilih orang dewasa tidak bermaksud kamu sudah mendapat bantuan.",
+    "Adakah kamu sudah beritahu seseorang dan benar-benar mendapat bantuan, atau masih perlukan sokongan?"
+  ])), {kind:"info",text:"Semak bantuan sebenar"});
+  setOptions("Apa yang benar-benar berlaku?", [
+    {label:"✅ Saya sudah dapat bantuan daripada orang dewasa",value:"__help_received__"},
+    {label:"🗣️ Saya sudah beritahu, tetapi belum dapat bantuan",value:"__help_told__"},
+    {label:"💬 Saya belum beritahu sesiapa",value:"__help_not_told__"},
+    {label:"⚠️ Saya sudah beritahu, tetapi mereka tidak membantu",value:"__help_unhelpful__"},
+    {label:"🤔 Saya belum pasti",value:"__help_unsure__"}
+  ]);
+}
+function safetyActionOptions() {
+  const options = [
+    {label:"🗣️ Latih ayat untuk meminta bantuan",value:"__safety_practice__"},
+    {label:"👩‍🏫 Saya mahu jumpa orang dewasa sekarang",value:"__safety_go_now__"},
+    {label:"🔄 Pilih orang dewasa lain",value:"__safety_change_adult__"},
+    {label:"✅ Saya sudah bersama orang dewasa yang membantu",value:"__safety_help_received__"}
+  ];
+  if (state.safeNowStatus === "safe" && state.safetyFlag !== "red") {
+    options.push({label:"🌿 Saya selamat sekarang; mahu cuba tenangkan emosi",value:"__safety_continue_emotion__"});
+  }
+  options.push({label:"🛑 Saya mahu berhenti dahulu",value:"__safety_stop__"});
+  return options;
+}
+async function showSafetyNextSteps(context="") {
+  state.step = 4.91;
+  setProgress(4.91);
+  const immediate = state.safeNowStatus !== "safe" || state.safetyFlag === "red";
+  const intro = immediate
+    ? "Jika kamu tidak selamat atau tidak pasti, jangan tunggu di aplikasi ini. Pergi ke tempat yang selamat dan minta bantuan orang dewasa yang dipercayai SEKARANG. Jika dalam bahaya segera, minta mereka hubungi bantuan kecemasan setempat."
+    : "Walaupun kamu selamat sekarang, perkara yang berlaku masih penting dan boleh dibincangkan dengan guru atau kaunselor.";
+  await botSay(simplify(wrap([context, intro,
+    "Kawan CBT belum menghubungi mana-mana guru. Memilih butang di sini BUKAN pemberitahuan automatik."
+  ])), {kind:immediate?"warn":"info",text:"Langkah sokongan sebenar"});
+  setOptions("Apa yang mahu kamu lakukan sekarang?", safetyActionOptions());
+}
+async function finishSafetyWithNote() {
+  state.safetyNeedsHumanReview = true;
+  await botSay(simplify(wrap([
+    "Terima kasih kerana berkongsi. Kita boleh berhenti di sini jika kamu mahu.",
+    state.helpReceivedSelfReported ? "Kamu memberitahu bahawa orang dewasa sudah membantu. Guru masih perlu menyemak jika sesi susulan diperlukan." : "Bantuan sebenar belum disahkan. Sila beritahu orang dewasa yang dipercayai secara langsung.",
+    "Kawan CBT tidak menghantar mesej automatik kepada guru atau pihak kecemasan."
+  ])), {kind:"warn",text:"Perlu semakan orang dewasa"});
+  showSummaryModal();
 }
 async function proceedToThought() {
   const answer = normalize(state.clarifyA);
@@ -1389,7 +1641,10 @@ async function askAction() {
   const base = scenarioBoostTools(focus, state.emotion);
   const favs = getFavorites().slice(0, 2).map(f => ({ label: `⭐ ${shorten(f, 22)}`, value: f }));
   const ranked = rankTools(base.filter(x => !String(x.value).startsWith("__")));
-  const merged = [...favs, ...ranked, ...base.filter(x => String(x.value).startsWith("__"))];
+  const tailored = (SMART42?.safeActions(state.smart42Situation) || []).map(x => ({
+    label: `💡 ${shorten(x, 85)}`, value: x
+  }));
+  const merged = [...tailored, ...favs, ...ranked, ...base.filter(x => String(x.value).startsWith("__"))];
   state.interventionReason = `${issueTypeLabel(focus)} + ${state.emotion || "emosi belum dikenal pasti"}`;
   await botSay(simplify(wrap([
     naturalTransition("action"),
@@ -1474,7 +1729,11 @@ async function showHelpScript() {
   addMsg("Saya nak ayat untuk minta tolong", "user");
   const lines = ["Baik. Kamu boleh guna ayat ini:", ...SCHOOL_HELP.helpLines.map((x, i) => `${i + 1}) ${x}`), "", `Pergi ke: ${SCHOOL_HELP.safePlace}`, `Jumpa: ${SCHOOL_HELP.trustedAdult}`];
   await botSay(simplify(lines.join("\n")), { kind: "warn", text: "Ayat bantuan" });
-  setOptions("Lepas itu:", [
+  setOptions("Lepas itu:", state.safetySupportMode ? [
+    {label:"👩‍🏫 Saya mahu jumpa orang dewasa sekarang",value:"__safety_go_now__"},
+    {label:"↩️ Lihat pilihan bantuan lain",value:"__safety_back__"},
+    {label:"🛑 Saya mahu berhenti dahulu",value:"__safety_stop__"}
+  ] : [
     { label: "✅ Saya akan jumpa cikgu", value: "__will_seek_help__" },
     { label: "🔄 Mula semula", value: "__restart__" }
   ]);
@@ -1490,10 +1749,22 @@ function buildStrengthOfDay() {
   return map[map.length - 1] || "kamu sudi mula mencuba";
 }
 function buildWarmProgressNote() {
+  if (state.safetySupportMode) return "Keselamatan dan sokongan orang dewasa lebih penting daripada skor emosi. Dapatkan bantuan secara langsung; pilihan dalam aplikasi tidak menghubungi guru.";
   if (typeof state.intensityPre !== "number" || typeof state.intensityPost !== "number") return "Apa yang paling penting: kamu sudah cuba memahami hati sendiri hari ini.";
   if (state.intensityPost < state.intensityPre) return "Perasaan kamu nampak sedikit lebih ringan. Walaupun kecil, itu tetap kemajuan yang baik.";
   if (state.intensityPost === state.intensityPre) return "Perasaan kamu masih sama kuat. Itu pun okay. Kadang-kadang hati perlukan lebih masa.";
   return "Perasaan kamu nampak lebih kuat sedikit selepas bercerita. Itu boleh berlaku bila hati mula meluahkan perkara yang berat. Cuba pilih langkah paling lembut atau cari orang dewasa yang dipercayai.";
+}
+function safetyHelpStatusLabel() {
+  const statuses = {
+    not_checked: "Belum disemak / belum disahkan",
+    not_told: "Belum memberitahu orang dewasa",
+    told: "Sudah beritahu, belum mendapat bantuan (menurut murid)",
+    unhelpful: "Sudah beritahu tetapi bantuan belum berkesan (menurut murid)",
+    received: "Murid menyatakan sudah menerima bantuan (belum disahkan pihak sekolah)",
+    unsure: "Belum pasti"
+  };
+  return statuses[state.helpStatus] || statuses.not_checked;
 }
 function buildRumusanSesi() {
   state.strengthOfDay = buildStrengthOfDay();
@@ -1505,6 +1776,12 @@ function buildRumusanSesi() {
     state.additionalIssues?.length ? `Perkara lain yang turut disebut: ${state.additionalIssues.map(issueTypeLabel).join(", ")}` : "",
     `Perasaan utama kamu: ${state.emotion || "-"}`,
     `Skor emosi kamu: ${state.intensityPre ?? "-"} / 10 → ${state.intensityPost ?? "-"} / 10`, "",
+    ...(state.safetySupportMode ? [
+      "⚠️ Sokongan keselamatan: Perkara ini memerlukan perhatian orang dewasa yang dipercayai.",
+      `Rasa selamat sekarang: ${state.safeNowStatus === "safe" ? "Ya (menurut murid)" : state.safeNowStatus === "unsafe" ? "Tidak (menurut murid)" : "Belum pasti"}`,
+      `Status bantuan sebenar: ${safetyHelpStatusLabel()}`,
+      "Kawan CBT TIDAK menghubungi guru secara automatik. Jika masih tidak selamat, minta bantuan secara bersemuka sekarang.", ""
+    ] : []),
     state.thought ? `Fikiran yang paling kuat tadi: ${state.thought}` : "Fikiran yang paling kuat tadi: -",
     state.newThought ? `Fikiran baru yang lebih seimbang: ${state.newThought}` : "Fikiran baru yang lebih seimbang: -",
     state.action || state.calmingAction ? `Langkah kecil yang kamu pilih: ${state.action || state.calmingAction}` : "Langkah kecil yang kamu pilih: -",
@@ -1534,6 +1811,11 @@ function buildTeacherSummary() {
     `Petunjuk keselamatan (teks asal): ${state.lastSafetyDisclosure || "-"}`,
     `Keadaan keselamatan: ${state.safeNow || "-"}`,
     `Orang yang boleh membantu: ${state.trustedPerson || "-"}`,
+    `Keadaan selamat menurut murid: ${state.safeNowStatus || "unknown"}`,
+    `Status bantuan: ${safetyHelpStatusLabel()}`,
+    `Langkah keselamatan: ${state.safetyActionStatus || "belum dipilih"}`,
+    `PERLU SEMAKAN MANUSIA: ${state.safetyNeedsHumanReview ? "YA" : "Tidak ditandai"}`,
+    "Tiada pemberitahuan automatik kepada sekolah / ibu bapa / kecemasan dibuat oleh perbualan ini.",
     `Emosi utama: ${state.emotion || "-"}`,
     `Skor emosi: ${state.intensityPre ?? "-"} / 10 → ${state.intensityPost ?? "-"} / 10`,
     `Perubahan: ${progressFlag}`,
@@ -1572,6 +1854,8 @@ function showSummaryModal() {
       dynamicFollowUpA: state.dynamicFollowUpA || "",
       lastSafetyDisclosure: state.lastSafetyDisclosure || "",
       safeNow: state.safeNow || "", trustedPerson: state.trustedPerson || "",
+      safeNowStatus: state.safeNowStatus || "unknown", helpStatus: state.helpStatus || "not_checked",
+      safetyActionStatus: state.safetyActionStatus || "not_set", safetyNeedsHumanReview: !!state.safetyNeedsHumanReview,
       emotion: state.emotion || "", pre: state.intensityPre ?? null, post: state.intensityPost ?? null,
       calming: state.calmingAction || "", action: state.action || "", thought: state.thought || "",
       newThought: state.newThought || "", safetyFlag: state.safetyFlag || "green",
@@ -1637,13 +1921,15 @@ function scheduleKioskAutoReset() {
       clearInterval(state.kioskAutoTimer);
       state.kioskAutoTimer = null;
       if (studentIdEl) studentIdEl.value = "";
-      start();
+      start().catch(ignoreChatCancelled);
     }
   }, 1000);
 }
 
 // ====== Start ======
 async function start() {
+  chatGeneration++;
+  cancelBotAnimation();
   if (chat) chat.innerHTML = "";
   resetState();
   kioskMode = !!kioskToggle?.checked;
@@ -1661,6 +1947,16 @@ async function start() {
 
 // ====== Main handler ======
 async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
+  if (processingInput || activeBotAnimation) return;
+  processingInput = true;
+  try { await processUserInput(text, source); }
+  catch (error) { if (!isChatCancelled(error)) throw error; }
+  finally {
+    processingInput = false;
+    optionsEl?.querySelectorAll("button").forEach(button => { button.disabled = false; });
+  }
+}
+async function processUserInput(text, source = INPUT_SOURCE.TYPED) {
   const raw = canonicalizeUserText(String(text || "").trim());
   if (!raw) return;
 
@@ -1711,6 +2007,11 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     addMsg("Saya sudah buat ✅", "user");
     if (state.step === 3) {
       await botSay("Bagus. Kamu sudah cuba menenangkan diri. 🌿", { kind: "ok", text: "Hebat" });
+      if (state.smart42PreFilledSituation && state.situation) {
+        if (state.issueType === "bully" && state.safetyFlag === "green") state.safetyFlag = "yellow";
+        await askSmartFollowUp();
+        return;
+      }
       state.step = 4;
       setProgress(4);
       const scn = SCENARIOS[state.scenarioKey] || SCENARIOS.other;
@@ -1817,6 +2118,14 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     showSummaryModal();
     return;
   }
+  if (raw === "__skip_thought__") {
+    addMsg("Saya mahu langkau bahagian fikiran", "user");
+    state.thought = "Murid memilih untuk melangkau bahagian fikiran.";
+    state.newThought = "";
+    await botSay("Baik, kita boleh terus cari satu langkah kecil yang membantu tanpa memaksa kamu menjawab.", {kind:"info",text:"Ikut keselesaan kamu"});
+    await askAction();
+    return;
+  }
   if (raw === "__continue_without_clarify__") {
     addMsg("Saya mahu teruskan tanpa menjawab soalan tadi", "user");
     if (["bully", "family"].includes(state.issueType)) {
@@ -1832,6 +2141,12 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     return;
   }
   if (raw === "__end_current_session__") {
+    if (state.safetySupportMode) {
+      state.safetyActionStatus = "student_chose_to_stop";
+      addMsg("Saya mahu berhenti dahulu", "user");
+      await finishSafetyWithNote();
+      return;
+    }
     addMsg("Saya mahu berhenti dahulu", "user");
     state.followUpPlan = "Murid memilih untuk berhenti meneroka buat masa ini; pertimbang susulan yang sesuai.";
     if (["bully", "family"].includes(state.issueType)) {
@@ -1843,91 +2158,179 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     return;
   }
 
-  if (raw === "__seek_safe_place__") {
-    addMsg(`Saya akan pergi ke ${SCHOOL_HELP.safePlace}.`, "user");
-    state.followUpPlan = `Pergi ke ${SCHOOL_HELP.safePlace} dan beritahu ${SCHOOL_HELP.trustedAdult}.`;
-    state.safetySupportMode = true;
-    await botSay(`Baik. Pergi ke ${SCHOOL_HELP.safePlace} dan beritahu ${SCHOOL_HELP.trustedAdult}.`, { kind: "warn", text: "Dapatkan bantuan" });
-    showSummaryModal();
-    return;
-  }
-  if (raw === "__will_seek_help__") {
-    addMsg("Saya akan jumpa cikgu", "user");
-    state.followUpPlan = `Beritahu ${SCHOOL_HELP.trustedAdult}.`;
-    if (state.safetySupportMode) { showSummaryModal(); return; }
-    if (state.helpScriptOriginStep === 9) { await askPostIntensity(); return; }
-    setOptions("Pilihan:", [{ label: "🔄 Sambung sesi", value: "__restart__" }]);
+  // Older help buttons now feed into the same follow-up workflow.
+  if (raw === "__seek_safe_place__" || raw === "__will_seek_help__") {
+    addMsg("Saya mahu pergi mendapatkan bantuan", "user");
+    state.followUpPlan = `Rancang berjumpa ${SCHOOL_HELP.trustedAdult} di ${SCHOOL_HELP.safePlace}.`;
+    state.safetyActionStatus = "plan_to_seek_help";
+    if (state.safetySupportMode) {
+      await showSafetyNextSteps("Pilihan untuk mendapatkan bantuan sudah dibuat, tetapi bantuan belum disahkan.");
+    } else if (state.helpScriptOriginStep === 9) {
+      await askPostIntensity();
+    } else {
+      setOptions("Pilihan:", [{ label: "🔄 Sambung sesi", value: "__restart__" }]);
+    }
     return;
   }
 
-  // Safety flow steps must be handled before keyword detection so the answer
-  // “Tidak, saya tak rasa selamat sekarang” is not intercepted by the generic rule.
-  if (state.step === 4.6) {
-    addMsg(raw, "user");
-    state.safeNow = raw;
-    const unsafe = /tidak|tak rasa selamat|tak pasti|tak tahu|\bno\b|not safe|don't feel safe|do not feel safe|unsafe|not sure|unsure|don't know|do not know/i.test(normalize(raw));
-    if (unsafe && state.safetyFlag === "green") state.safetyFlag = "orange";
-    if (unsafe) {
-      await botSay(simplify(wrap([
-        "Terima kasih kerana beritahu saya dengan jujur.",
-        "Lebih baik kita dapatkan bantuan orang dewasa yang boleh bersama kamu dan menilai keadaan dengan selamat."
-      ])), { kind: "warn", text: "Cari sokongan sekarang" });
-    } else {
-      await botSay(simplify("Bagus kamu sudah beritahu. Walaupun kamu rasa selamat sekarang, kita masih boleh cari orang dewasa yang boleh membantu."), { kind: "info", text: "Cari sokongan" });
+  // Named safety actions are handled before free text classification.
+  if (raw === "__safety_practice__") { await showHelpScript(); return; }
+  if (raw === "__safety_back__") { await showSafetyNextSteps(); return; }
+  if (raw === "__safety_change_adult__") { await askSafetyAdult(); return; }
+  if (raw === "__safety_go_now__") {
+    addMsg("Saya mahu jumpa orang dewasa sekarang", "user");
+    state.safetyActionStatus = "plan_to_seek_help_now";
+    state.followUpPlan = `Pergi berjumpa ${state.trustedPerson || SCHOOL_HELP.trustedAdult} secara langsung. Belum disahkan telah berlaku.`;
+    await showSafetyNextSteps(`Sekarang pergi ke ${SCHOOL_HELP.safePlace} atau cari ${state.trustedPerson || SCHOOL_HELP.trustedAdult} yang boleh membantu kamu dengan selamat. Jangan hadapi orang yang menyakiti kamu seorang diri.`);
+    return;
+  }
+  if (raw === "__safety_help_received__") {
+    state.helpStatus = "received";
+    state.helpReceivedSelfReported = true;
+    state.safetyActionStatus = "help_reported_by_student";
+    addMsg("Saya sudah bersama orang dewasa yang membantu", "user");
+    await showSafetyNextSteps("Terima kasih. Saya catat bahawa kamu kata orang dewasa sudah membantu, tetapi Kawan CBT tidak dapat mengesahkannya.");
+    return;
+  }
+  if (raw === "__safety_stop__") {
+    state.safetyActionStatus = state.safetyActionStatus === "not_set" ? "student_chose_to_stop" : state.safetyActionStatus;
+    if (!state.followUpPlan) state.followUpPlan = "Sesi dijeda; bantuan orang dewasa perlu disemak secara langsung.";
+    addMsg("Saya mahu berhenti dahulu", "user");
+    await finishSafetyWithNote();
+    return;
+  }
+  if (raw === "__safety_continue_emotion__") {
+    addMsg("Saya selamat dan mahu cuba satu cara menenangkan emosi", "user");
+    if (state.safeNowStatus !== "safe" || state.safetyFlag === "red") {
+      await showSafetyNextSteps("Kita utamakan bantuan orang dewasa dahulu kerana keadaan keselamatan belum jelas.");
+      return;
     }
-    state.step = 4.7;
-    setProgress(4.7);
-    await botSay(simplify("Siapa orang dewasa yang kamu rasa boleh membantu kamu?"), { kind: "info", text: "Kenal pasti sokongan" });
-    setOptions("Pilih orang yang sesuai:", [
-      { label: "Cikgu kelas", value: "Cikgu kelas" },
-      { label: "Guru Bimbingan dan Kaunseling", value: "Guru Bimbingan dan Kaunseling" },
-      { label: "Guru bertugas", value: "Guru bertugas" },
-      { label: "Ahli keluarga yang dipercayai", value: "Ahli keluarga yang dipercayai" },
-      { label: "Saya belum pasti", value: "Saya belum pasti" }
+    state.safetyActionStatus = "coping_skill_after_safety_check";
+    state.step = 9;
+    setProgress(9);
+    await botSay("Kita boleh cuba satu latihan ringan tanpa menafikan apa yang berlaku. Kamu masih boleh minta bantuan guru bila-bila masa.", {kind:"info",text:"Bertenang sementara"});
+    setOptions("Pilih satu latihan sementara:", [
+      {label:"🌈 Nafas Pelangi",value:"Nafas Pelangi (Nafas 4-4-4 × 5 kali)"},
+      {label:"🌿 Jejak Tenang",value:"Jejak Tenang (Grounding 5-4-3-2-1)"},
+      {label:"🗣️ Ayat meminta bantuan",value:"__help_script__"},
+      {label:"🛑 Berhenti dahulu",value:"__safety_stop__"}
     ]);
     return;
   }
-  if (state.step === 4.7) {
-    const newSafetyLevel = safetyLevelFromText(raw);
-    if (newSafetyLevel === "red" || newSafetyLevel === "orange") {
-      addMsg(raw, "user");
-      state.safeNow = raw;
-      state.lastSafetyDisclosure = raw;
-      state.safetyFlag = newSafetyLevel;
-      state.safetySupportMode = true;
-      const updatedSafety = safetyResponse(newSafetyLevel);
-      if (updatedSafety) await botSay(updatedSafety.msg, updatedSafety.tag, 220);
-      await botSay(simplify("Terima kasih sebab beritahu saya. Sekarang, siapa orang dewasa yang boleh bersama kamu dan membantu dengan selamat?"), { kind: "warn", text: "Pilih orang dewasa" });
-      setOptions("Pilih orang yang sesuai:", [
-        { label: "Cikgu kelas", value: "Cikgu kelas" },
-        { label: "Guru Bimbingan dan Kaunseling", value: "Guru Bimbingan dan Kaunseling" },
-        { label: "Guru bertugas", value: "Guru bertugas" },
-        { label: "Ahli keluarga yang dipercayai", value: "Ahli keluarga yang dipercayai" },
-        { label: "Saya belum pasti", value: "Saya belum pasti" }
+
+  // v4.2.1: screen for current safety without assuming "yes" from arbitrary text.
+  if (state.step === 4.6) {
+    const answer = classifySafetyNow(raw);
+    if (answer === "unknown") {
+      addMsg(raw,"user");
+      await botSay("Saya tak mahu teka sama ada kamu selamat. Boleh pilih Ya, Tidak atau Belum pasti?",{kind:"warn",text:"Semak keadaan sekarang"});
+      setOptions("Adakah kamu selamat SEKARANG?",[
+        {label:"✅ Ya, saya selamat sekarang",value:"__safety_safe__"},
+        {label:"⚠️ Tidak selamat",value:"__safety_unsafe__"},
+        {label:"🤔 Belum pasti",value:"__safety_unsure__"}
       ]);
       return;
     }
-    addMsg(raw, "user");
-    const unsureAdult = /belum pasti|tak pasti|tak tahu|tiada siapa|tak ada siapa|saya tak percaya sesiapa|i don't know|no one/i.test(normalize(raw));
-    state.trustedPerson = unsureAdult ? "Belum dikenal pasti; perlu bantuan orang dewasa di sekolah" : raw;
-    state.followUpPlan = unsureAdult
-      ? `Minta bantuan ${SCHOOL_HELP.trustedAdult} untuk menentukan langkah yang selamat.`
-      : `Beritahu ${raw} tentang perkara yang berlaku.`;
-    await botSay(simplify(wrap([
-      unsureAdult
-        ? `Tak apa kalau kamu belum tahu siapa. Kamu boleh mula dengan ${SCHOOL_HELP.trustedAdult} di ${SCHOOL_HELP.safePlace}.`
-        : "Terima kasih. Kita sudah kenal pasti langkah untuk mendapatkan sokongan.",
-      "Kamu tak perlu menghadapi perkara ini seorang diri.",
-      "Jika kamu tidak selamat sekarang, pergi kepada orang dewasa yang dipercayai dengan segera."
-    ])), { kind: "warn", text: "Langkah mendapatkan bantuan" });
-    showSummaryModal();
+    addMsg(answer==="safe" ? "Ya, saya selamat sekarang" : answer==="unsafe" ? "Tidak, saya tidak selamat sekarang" : "Saya belum pasti", "user");
+    state.safeNowStatus = answer;
+    state.safeNow = answer==="safe" ? "Selamat sekarang (menurut murid)" : answer==="unsafe" ? "Tidak selamat sekarang (menurut murid)" : "Belum pasti";
+    if (answer !== "safe") {
+      if (state.safetyFlag !== "red") state.safetyFlag = "orange";
+      await botSay("Terima kasih beritahu. Jika kamu dalam bahaya sekarang, berhenti bersembang dan segera cari orang dewasa yang boleh bersama kamu di tempat selamat. Jika kecemasan, minta mereka menghubungi bantuan kecemasan setempat.",{kind:"warn",text:"Bantuan segera"});
+    } else {
+      await botSay("Terima kasih. Walaupun kamu selamat sekarang, apa yang berlaku masih perlu diambil serius.",{kind:"info",text:"Keselamatan dahulu"});
+    }
+    await askSafetyAdult();
+    return;
+  }
+  if (state.step === 4.7) {
+    let selected = SAFETY_ADULT_VALUES[raw];
+    if (!selected) {
+      const incoming = smarterSafetyLevel(raw);
+      if (incoming === "red" || incoming === "orange") {
+        addMsg(raw,"user");
+        state.lastSafetyDisclosure = raw;
+        state.safetyFlag = incoming === "red" ? "red" : (state.safetyFlag === "red" ? "red" : "orange");
+        await botSay("Jika orang dewasa itu juga menyebabkan kamu rasa tidak selamat, kamu boleh pilih guru, GBK atau pentadbir lain yang selamat. Kamu tidak perlu berdepan dengannya sendirian.",{kind:"warn",text:"Orang dewasa yang selamat"});
+        await askSafetyAdult();
+        return;
+      }
+      selected = raw;
+    }
+    addMsg(selected,"user");
+    const unsure = /belum pasti|tak pasti|tak tahu|tiada siapa|tak ada siapa|saya tak percaya sesiapa|i don't know|no one/i.test(normalize(selected));
+    state.trustedPerson = unsure ? "Belum dikenal pasti; sokongan di sekolah dicadangkan" : selected;
+    state.followUpPlan = unsure ? `Cari ${SCHOOL_HELP.trustedAdult} yang selamat.` : `Rancang beritahu ${selected} secara langsung.`;
+    await askRealHelpStatus();
+    return;
+  }
+  if (state.step === 4.9) {
+    const statusByCommand = {
+      __help_received__: "received", __help_told__: "told",
+      __help_not_told__: "not_told", __help_unhelpful__: "unhelpful",
+      __help_unsure__: "unsure"
+    };
+    let helpStatus = statusByCommand[raw];
+    if (!helpStatus) {
+      if (source === INPUT_SOURCE.TYPED && smarterSafetyLevel(raw) === "red") {
+        addMsg(raw,"user"); state.safetyFlag="red"; state.lastSafetyDisclosure=raw;
+        await showSafetyNextSteps("Saya ambil serius apa yang kamu cerita. Tolong dapatkan orang dewasa yang boleh bersama kamu sekarang.");
+        return;
+      }
+      const t=normalize(raw);
+      if (/tak bantu|tidak bantu|tak dengar|tidak dengar|abaikan|tak tolong|tidak tolong|belum membantu|tak ambil tindakan|tidak ambil tindakan/.test(t)) helpStatus="unhelpful";
+      else if (/sudah|dah/.test(t) && /(?:bantu|tolong)/.test(t) && !/belum|tak|tidak/.test(t)) helpStatus="received";
+      else if (/dah|sudah/.test(t) && /beritahu|lapor|cakap/.test(t) && /belum|tak|tidak/.test(t)) helpStatus="told";
+      else if (/tak|tidak|belum/.test(t) && /beritahu|lapor|cakap/.test(t)) helpStatus="not_told";
+      else if (/tak pasti|tak tahu|entah|belum pasti/.test(t)) helpStatus="unsure";
+      else {
+        addMsg(raw,"user");
+        await botSay("Saya tidak mahu menganggap kamu sudah mendapat bantuan. Pilih satu jawapan yang paling dekat.",{kind:"info",text:"Semak bantuan"});
+        await askRealHelpStatus();
+        return;
+      }
+    }
+    state.helpStatus=helpStatus;
+    state.helpReceivedSelfReported=(helpStatus==="received");
+    addMsg(({
+      received:"Saya sudah mendapat bantuan",told:"Saya sudah beritahu tetapi belum dapat bantuan",
+      not_told:"Saya belum beritahu",unhelpful:"Saya beritahu tetapi tidak dibantu",unsure:"Saya belum pasti"
+    })[helpStatus],"user");
+    const note=helpStatus==="received"
+      ? "Terima kasih. Saya catat bahawa kamu kata sudah mendapat bantuan, tetapi saya tidak boleh mengesahkan perkara itu."
+      : helpStatus==="unhelpful"
+        ? "Saya dengar orang yang kamu beritahu belum membantu. Cuba orang dewasa lain yang boleh dipercayai, seperti GBK atau pentadbir sekolah."
+        : "Memilih cara meminta bantuan ialah langkah awal sahaja; kita belum dapat pastikan bantuan sudah diterima.";
+    await showSafetyNextSteps(note);
+    return;
+  }
+  if (state.step === 4.91) {
+    if (source === INPUT_SOURCE.TYPED && smarterSafetyLevel(raw) !== "green") {
+      addMsg(raw,"user");
+      const risk=smarterSafetyLevel(raw);
+      if (risk==="red" || state.safetyFlag!=="red") state.safetyFlag=risk;
+      state.lastSafetyDisclosure=raw;
+      await showSafetyNextSteps("Saya dengar perkara baru yang mungkin berkaitan keselamatan. Beritahu guru atau orang dewasa yang dipercayai secara langsung.");
+      return;
+    }
+    // Common typed requests are routed to the SAME permission-safe buttons.
+    // Never infer that a planned visit means help has actually been received.
+    const t=normalize(raw);
+    let action=null;
+    if (/^(?:saya\s+)?(?:mahu|nak|ingin)\s+(?:berhenti|tamat|stop)|tak nak sambung/.test(t)) action="__safety_stop__";
+    else if (/^(?:saya\s+)?(?:mahu|nak|boleh)\s+(?:latih|belajar|cuba)\s+(?:ayat|cara)\s+(?:minta|meminta)\s+(?:tolong|bantuan)/.test(t)) action="__safety_practice__";
+    else if (/^(?:saya\s+)?(?:mahu|nak|ingin)\s+(?:jumpa|beritahu|pergi|cari)\s+(?:cikgu|guru|kaunselor|orang dewasa)/.test(t)) action="__safety_go_now__";
+    else if (/^(?:saya\s+)?(?:sudah|dah)\s+(?:dapat|terima)\s+bantuan|orang dewasa (?:sudah|dah) membantu saya/.test(t)) action="__safety_help_received__";
+    if(action) { await processUserInput(action, INPUT_SOURCE.OPTION); return; }
+    addMsg(raw,"user");
+    await showSafetyNextSteps("Untuk keselamatan, pilih salah satu langkah yang tersedia. Kamu tidak perlu meneruskan perbualan ini.");
     return;
   }
 
   // Safety-related answers to the smart follow-up are saved as part of the case
   // before entering the adult-support route (especially the family safety question).
   if (state.step === 4.5) {
-    const clarifySafetyLevel = safetyLevelFromText(raw);
+    const clarifySafetyLevel = smarterSafetyLevel(raw);
     if (clarifySafetyLevel !== "green") {
       state.clarifyA = raw;
       state.safetyFlag = clarifySafetyLevel;
@@ -1943,15 +2346,16 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
 
   // Immediate safety response for direct disclosures. This is a keyword aid,
   // not a diagnosis or confirmation. Store the original situation if it occurs at step 4.
-  const lvl = safetyLevelFromText(raw);
+  const lvl = smarterSafetyLevel(raw);
   if (lvl !== "green") {
     state.safetyFlag = lvl;
     state.safetySupportMode = true;
     state.lastSafetyDisclosure = raw;
     state.awaitingTypedField = null;
-    if (state.step === 4) {
+    if (state.step === 0 || state.step === 1 || state.step === 4) {
       state.situation = raw;
-      state.issueType = detectIssueType(raw, state.scenarioKey);
+      state.smart42Situation = smart42Analyze(raw);
+      state.issueType = state.smart42Situation?.specificity ? state.smart42Situation.issue : detectIssueType(raw, state.scenarioKey);
       state.detectedIssues = detectIssueTypes(raw, state.scenarioKey);
     } else if (state.step === 4.5) {
       state.clarifyA = raw;
@@ -1982,6 +2386,33 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
         ]);
       }
     }
+    return;
+  }
+
+  // v4.2: respect a typed request to stop, or to get practical help,
+  // regardless of which CBT worksheet step the pupil happens to be on.
+  // Real safety concerns have already been checked above.
+  const turnIntent = source === INPUT_SOURCE.TYPED ? smart42Analyze(raw) : null;
+  if (turnIntent?.declined && ![0,4,4.5].includes(state.step)) {
+    state.awaitingTypedField = null;
+    addMsg(raw,"user");
+    await botSay("Saya dengar kamu belum selesa menjawab. Tidak apa — kamu boleh berhenti, atau pilih bantuan ringkas tanpa terus bercerita.", {kind:"info",text:"Kamu boleh pilih"});
+    setOptions("Pilihan kamu:", [
+      {label:"🌿 Saya mahu langkah kecil",value:"__skip_thought__"},
+      {label:"🛑 Saya mahu berhenti",value:"__end_current_session__"}
+    ]);
+    return;
+  }
+  if (turnIntent?.requestsHelp && raw.length <= 65 && state.step >= 5 && state.step <= 8 &&
+      !/(?:apa yang|mengapa saya|kenapa saya|bantu saya faham)/i.test(raw)) {
+    state.awaitingTypedField = null;
+    addMsg(raw,"user");
+    await botSay("Saya dengar kamu mahu bantuan yang boleh dicuba sekarang. Kita boleh pilih langkah kecil yang selamat, tanpa memaksa kamu menjawab semua soalan CBT.", {kind:"info",text:"Cari langkah yang sesuai"});
+    setOptions("Apa yang kamu mahu?", [
+      {label:"🌈 Cari langkah kecil",value:"__skip_thought__"},
+      {label:"🗣️ Ayat meminta bantuan",value:"__help_script__"},
+      {label:"🛑 Berhenti dahulu",value:"__end_current_session__"}
+    ]);
     return;
   }
 
@@ -2030,6 +2461,40 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
   addMsg(displayRaw, "user");
 
   const scn = SCENARIOS[state.scenarioKey] || SCENARIOS.other;
+  const typedContext = source === INPUT_SOURCE.TYPED ? smart42Analyze(raw) : null;
+
+  // v4.2: a pupil may begin by typing a story without selecting a scenario.
+  // We preserve the student's words, rather than ignoring them at step zero.
+  if (state.step === 0 && typedContext && raw.length >= 9 && typedContext.intent !== "unsure") {
+    state.situation = raw;
+    state.smart42Situation = typedContext;
+    state.smart42PreFilledSituation = true;
+    state.issueType = typedContext.issue;
+    state.scenarioKey = typedContext.issue;
+    state.scenarioName = (SCENARIOS[typedContext.issue] || SCENARIOS.other).name;
+    state.detectedIssues = detectIssueTypes(raw, typedContext.issue);
+    state.step = 1;
+    setProgress(1);
+    if (scenarioArea) scenarioArea.style.display = "none";
+    await botSay(simplify(wrap([
+      "Terima kasih kerana terus bercerita dengan perkataan kamu sendiri.",
+      smart42Echo(typedContext),
+      typedContext.emotion ? `Saya tertanya-tanya sama ada kamu rasa ${typedContext.emotion.toLowerCase()}. Betul begitu?` : "Emosi apa yang paling dekat dengan kamu sekarang?"
+    ])), {kind:"info",text:"Saya mendengar cerita kamu"});
+    setOptions("Pilih perasaan atau taip sendiri:", [
+      ...(typedContext.emotion ? [{label:`💛 Ya, ${typedContext.emotion}`,value:typedContext.emotion}] : []),
+      {label:"😢 Sedih",value:"Sedih"},{label:"😟 Risau",value:"Risau"},
+      {label:"😡 Marah",value:"Marah"},{label:"😨 Takut",value:"Takut"},
+      {label:"😳 Malu",value:"Malu"},{label:"🤔 Tak pasti",value:"Tak pasti"}
+    ]);
+    return;
+  }
+
+  if (state.step === 0 && typedContext?.intent === "decline") {
+    await botSay("Tak apa. Kamu tak perlu cerita sekarang. Kamu boleh pilih aktiviti emosi atau kembali apabila bersedia.", {kind:"info",text:"Ikut keselesaan kamu"});
+    showScenarioPrompt();
+    return;
+  }
 
   // A saved favourite can be opened directly from the start screen.
   if (state.step === 0 && GUIDES[raw]) {
@@ -2042,13 +2507,41 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
 
   if (state.step === 1) {
     const emotionAnswerKind = classifyShortResponse(raw);
+    if (source === INPUT_SOURCE.TYPED && emotionAnswerKind === "content" && typedContext && !typedContext.emotion && raw.length > 13) {
+      // A sentence without a named emotion is not an emotion label. Preserve
+      // it as the pupil's account and gently ask for the emotion separately.
+      if (!state.situation) {
+        state.situation = raw;
+        state.smart42Situation = typedContext;
+        state.smart42PreFilledSituation = true;
+        if (typedContext.specificity > 0) state.issueType = typedContext.issue;
+      }
+      await botSay(simplify(wrap([
+        "Terima kasih sebab beritahu saya dengan ayat kamu sendiri.",
+        smart42Echo(typedContext),
+        "Saya tak mahu teka apa yang kamu rasa. Emosi mana yang paling dekat sekarang?"
+      ])), {kind:"info",text:"Semak perasaan bersama"});
+      setOptions("Pilih atau taip satu emosi:", [
+        {label:"😢 Sedih",value:"Sedih"},{label:"😟 Risau",value:"Risau"},
+        {label:"😡 Marah",value:"Marah"},{label:"😨 Takut",value:"Takut"},
+        {label:"😳 Malu",value:"Malu"},{label:"🤔 Tak pasti",value:"Tak pasti"}
+      ]);
+      return;
+    }
     if (((source === INPUT_SOURCE.TYPED && ["unknown", "neutral", "prefer"].includes(emotionAnswerKind)) ||
          raw === "Tak pasti") && (state.emotionRetryCount || 0) < 1) {
       await askEmotionClarification();
       return;
     }
+    if (typedContext && typedContext.specificity && !state.situation && raw.length >= 14) {
+      state.situation = raw;
+      state.smart42Situation = typedContext;
+      state.smart42PreFilledSituation = true;
+      state.issueType = typedContext.issue;
+    }
     state.emotion = emotionAnswerKind === "neutral" ? "Neutral" :
-      (emotionAnswerKind === "unknown" || emotionAnswerKind === "prefer" ? "Tak pasti" : raw);
+      (emotionAnswerKind === "unknown" || emotionAnswerKind === "prefer" ? "Tak pasti" :
+        (typedContext?.emotion || raw));
     state.step = 2;
     setProgress(2);
     await botSay(simplify(wrap([
@@ -2060,9 +2553,15 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
   }
 
   if (state.step === 2) {
-    const n = clamp(isNumberLike(raw) ? Number(raw) : 6, 0, 10);
+    const n = smart42Score(raw);
+    if (n === null && !/^(?:tak pasti|tak tahu|langkau|skip|belum pasti)$/i.test(raw)) {
+      state.smart42ScoreRetry = (state.smart42ScoreRetry || 0) + 1;
+      await botSay("Boleh pilih angka 0 hingga 10, contohnya 7 atau 'tujuh'. Kalau tak pasti, pilih 'Tak pasti' — saya tak akan teka skor kamu.", {kind:"info",text:"Skor pilihan kamu"});
+      setOptions("Pilih skor:", [...[0,2,4,6,8,10].map(x=>({label:String(x),value:String(x)})),{label:"🤔 Tak pasti",value:"Tak pasti"}]);
+      return;
+    }
     state.intensityPre = n;
-    if (n >= 8) {
+    if (n !== null && n >= 8) {
       state.step = 3;
       setProgress(3);
       await botSay(simplify(`Baik. Emosi kamu sekarang ${n}/10, jadi kita tenangkan hati dan badan dulu ya.`), { kind: "warn", text: "Tenang dulu" });
@@ -2071,7 +2570,17 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     }
     state.step = 4;
     setProgress(4);
-    await botSay(simplify(wrap([`Baik. Emosi kamu ${n}/10.`, praiseSmall(), naturalTransition("situation"), "Sekarang, apa yang berlaku?"])), { kind: "info", text: "Situasi" });
+    if (state.smart42PreFilledSituation && state.situation) {
+      await botSay(simplify(wrap([
+        n === null ? "Tak mengapa kalau kamu belum pasti tentang skor emosi." : `Terima kasih, skor kamu ${n}/10.`,
+        "Kamu sudah berkongsi situasi tadi, jadi saya tak akan minta kamu mengulang cerita.",
+        smart42Echo(state.smart42Situation)
+      ])), {kind:"info",text:"Saya ingat cerita kamu"});
+      if (state.issueType === "bully" && state.safetyFlag === "green") state.safetyFlag = "yellow";
+      await askSmartFollowUp();
+      return;
+    }
+    await botSay(simplify(wrap([n === null ? "Tak mengapa kalau kamu belum pasti tentang skor emosi." : `Baik. Emosi kamu ${n}/10.`, praiseSmall(), naturalTransition("situation"), "Sekarang, apa yang berlaku?"])), { kind: "info", text: "Situasi" });
     setOptions("Contoh:", [
       { label: scn.example, value: scn.example },
       { label: "Saya tak tahu nak cerita.", value: "tak tahu" }
@@ -2137,8 +2646,11 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     }
 
     state.situation = raw;
+    state.smart42Situation = typedContext || smart42Analyze(raw);
     state.detectedIssues = detectIssueTypes(state.situation, state.scenarioKey);
-    state.issueType = detectIssueType(state.situation, state.scenarioKey);
+    state.issueType = (state.smart42Situation && state.smart42Situation.specificity > 0)
+      ? state.smart42Situation.issue
+      : detectIssueType(state.situation, state.scenarioKey);
 
     // If the student mentions several non-urgent concerns, let them choose one to explore first.
     // Safety-related bullying is prioritised instead of being hidden among ordinary topics.
@@ -2185,6 +2697,28 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
   }
 
   if (state.step === 4.5) {
+    const typedClarify = source === INPUT_SOURCE.TYPED ? smart42Analyze(raw) : null;
+    if (typedClarify?.intent === "correct" && typedClarify.specificity &&
+        typedClarify.issue !== state.issueType && (state.smart42CorrectionCount||0) < 2) {
+      state.smart42CorrectionCount += 1;
+      state.issueType = typedClarify.issue;
+      state.smart42Situation = typedClarify;
+      await botSay(simplify(wrap([
+        "Terima kasih kerana betulkan saya. Saya tak mahu buat andaian tentang cerita kamu.",
+        smart42Echo(typedClarify),
+        "Kita fokus pada perkara yang kamu maksudkan ya."
+      ])), {kind:"info",text:"Terima kasih membetulkan saya"});
+      await askSmartFollowUp();
+      return;
+    }
+    if (typedClarify?.declined) {
+      await botSay("Tak mengapa. Kamu tidak perlu menjawab soalan ini jika belum selesa.", {kind:"info",text:"Pilihan kamu"});
+      setOptions("Kamu boleh pilih:", [
+        {label:"Teruskan perlahan-lahan",value:"__continue_without_clarify__"},
+        {label:"Berhenti dahulu",value:"__end_current_session__"}
+      ]);
+      return;
+    }
     const answerKind = classifyShortResponse(raw);
     if (answerKind === "prefer") {
       state.clarifyA = "Murid memilih untuk tidak menjawab soalan tambahan buat masa ini.";
@@ -2210,6 +2744,7 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     }
 
     state.clarifyA = answerKind === "unknown" || answerKind === "neutral" ? "Tak pasti" : raw;
+    if (source === INPUT_SOURCE.TYPED && state.clarifyA !== "Tak pasti") state.smart42LastAnswer = smart42Analyze(raw);
     await continueAfterSmartFollowUp();
     return;
   }
@@ -2235,17 +2770,19 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
       return;
     }
     state.dynamicFollowUpA = (followKind === "unknown" || followKind === "neutral") ? "Tak pasti" : raw;
+    if (source === INPUT_SOURCE.TYPED && state.dynamicFollowUpA !== "Tak pasti") {
+      await botSay(simplify(SMART42?.nextReflection(state.smart42Situation, state.dynamicFollowUpA) || "Terima kasih sebab menjawab."), {kind:"info",text:"Saya dengar jawapan kamu"}, 130);
+    }
     await proceedToThought();
     return;
   }
 
   if (state.step === 5) {
     if (handleIDontKnow(raw)) {
-      await botSay("Tak apa. Pilih satu fikiran yang paling dekat dengan kamu.", { kind: "info", text: "Fikiran" });
-      setOptions("Pilih:", [
-        { label: "Saya tak cukup bagus.", value: "Saya tak cukup bagus." },
-        { label: "Saya pasti gagal.", value: "Saya pasti gagal." },
-        { label: "Tak ada siapa tolong saya.", value: "Tak ada siapa tolong saya." }
+      await botSay("Tak apa kalau kamu belum tahu apa yang terlintas di fikiran. Kita tidak perlu memilih ayat yang tidak benar untuk kamu.", { kind: "info", text: "Tak perlu paksa jawapan" });
+      setOptions("Pilih yang paling dekat atau langkau:", [
+        ...smartThoughtOptions(state.issueType, SCENARIOS[state.scenarioKey]||SCENARIOS.other).slice(0,3).map(x=>({label:x,value:x})),
+        {label:"Saya mahu langkau dan pilih bantuan",value:"__skip_thought__"}
       ]);
       return;
     }
@@ -2279,13 +2816,19 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
       await askBeliefNew();
       return;
     }
-    if (isNumberLike(raw)) {
-      state.beliefThought = clamp(Number(raw), 0, 10);
+    const n = smart42Score(raw);
+    if (n !== null) {
+      state.beliefThought = n;
       await showNewThoughtOptions();
       return;
     }
-    state.beliefThought = 6;
-    await showNewThoughtOptions();
+    if (/^(?:tak tahu|tak pasti|langkau|skip)$/i.test(raw)) {
+      state.beliefThought = null;
+      await showNewThoughtOptions();
+      return;
+    }
+    await botSay("Saya tak mahu teka skor fikiran kamu. Pilih 0 hingga 10 atau 'Langkau' kalau tak mahu beri skor.", {kind:"info",text:"Skor tanpa paksaan"});
+    setOptions("Skor fikiran asal:", [...[0,2,4,6,8,10].map(x=>({label:String(x),value:String(x)})),{label:"Langkau",value:"Langkau"}]);
     return;
   }
 
@@ -2294,19 +2837,30 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
     if (raw === "__help_script__") { await showHelpScript(); return; }
     const guided = await runGuide(state.action, false);
     if (!guided) {
-      await botSay("Baik. Itu satu langkah yang bagus. ✅", { kind: "ok", text: "Langkah dipilih" });
+      const isTailored = (SMART42?.safeActions(state.smart42Situation) || []).includes(raw);
+      await botSay(isTailored ?
+        simplify("Baik. Kita pilih langkah yang berkait dengan cerita kamu: " + raw) :
+        "Baik. Kamu sudah memilih satu langkah kecil yang sesuai untuk dicuba. ✅",
+        { kind: "ok", text: "Langkah dipilih" });
       await askPostIntensity();
     }
     return;
   }
 
   if (state.step === 10) {
-    const n = clamp(isNumberLike(raw) ? Number(raw) : (state.intensityPre ?? 0), 0, 10);
+    const n = smart42Score(raw);
+    if (n === null && !/^(?:tak tahu|tak pasti|langkau|skip)$/i.test(raw)) {
+      await botSay("Kalau boleh, pilih angka 0 hingga 10. Kalau tak pasti, tak mengapa pilih 'Tak pasti'.", {kind:"info",text:"Skala pilihan"});
+      setOptions("Pilih:", [...[0,2,4,6,8,10].map(x=>({label:String(x),value:String(x)})),{label:"Tak pasti",value:"Tak pasti"}]);
+      return;
+    }
     state.intensityPost = n;
-    const delta = (state.intensityPre ?? 0) - n;
-    if (state.action) updateToolScore(state.action, delta);
+    const delta = (state.intensityPre === null || n === null) ? null : state.intensityPre - n;
+    if (state.action && delta !== null) updateToolScore(state.action, delta);
     let closing;
-    if (n > state.intensityPre) {
+    if (n === null || state.intensityPre === null) {
+      closing = wrap(["Terima kasih sebab berkongsi.","Tak perlu paksa diri beri nombor kalau belum pasti.","Yang penting, kita cari satu langkah kecil yang sesuai dengan kamu."]);
+    } else if (n > state.intensityPre) {
       closing = wrap(["Terima kasih sebab teruskan sampai sini.", "Saya nampak emosi kamu masih berat atau terasa lebih kuat sekarang.", "Itu boleh berlaku apabila kita mula meluahkan perkara yang susah.", "Pilih langkah paling lembut atau beritahu orang dewasa yang kamu percaya ya."]);
     } else if (n === state.intensityPre) {
       closing = wrap(["Terima kasih sebab teruskan sampai sini.", "Perasaan kamu masih sama kuat, dan itu pun okay.", "Kadang-kadang hati perlukan masa lebih sedikit."]);
@@ -2334,7 +2888,7 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
       planText = "Baik. Catat perkara yang kamu ingat dan tunjukkan kepada orang dewasa yang boleh membantu. Kamu tak perlu menghadapinya seorang diri. 📝";
     } else if (raw === "plan_tell_teacher") {
       state.followUpPlan = `Jumpa ${SCHOOL_HELP.trustedAdult}.`;
-      planText = `Baik. Kamu akan jumpa ${SCHOOL_HELP.trustedAdult}. Itu satu langkah yang sangat berani. 🌟`;
+      planText = `Baik. Kamu bercadang untuk jumpa ${SCHOOL_HELP.trustedAdult}. Langkah itu belum disahkan berlaku. 🌟`;
     } else if (raw === "plan_selfkind") {
       state.followUpPlan = "Cakap baik dengan diri.";
       planText = "Baik. Bila hati susah, kamu akan cuba cakap baik dengan diri. Itu juga satu kekuatan. 💛";
@@ -2351,13 +2905,21 @@ async function handleUserInput(text, source = INPUT_SOURCE.TYPED) {
 if (form) {
   form.addEventListener("submit", async e => {
     e.preventDefault();
-    await handleUserInput(input?.value || "", INPUT_SOURCE.TYPED);
+    // Enter while Kawan is typing reveals the current reply instead of losing pupil text.
+    if (processingInput || activeBotAnimation) {
+      activeBotAnimation?.skip();
+      return;
+    }
+    const submittedText = input?.value || "";
+    if (!submittedText.trim()) return;
+    // Clear the sent text immediately, so new typing cannot be wiped at the end of a long reply.
     if (input) {
       input.value = "";
       input.style.height = "auto";
       updateCharUI();
       input.focus();
     }
+    await handleUserInput(submittedText, INPUT_SOURCE.TYPED);
   });
 }
 if (input) {
@@ -2382,18 +2944,18 @@ function updateCharUI() {
   else if (len > 180) charHint.textContent = "Bagus. Ringkas pun tetap okay.";
   else charHint.textContent = "Tip: satu ayat pendek pun okay.";
 }
-resetBtn?.addEventListener("click", start);
+resetBtn?.addEventListener("click", () => start().catch(ignoreChatCancelled));
 kioskToggle?.addEventListener("change", () => {
   kioskMode = kioskToggle.checked;
   if (kioskMode && longToggle) longToggle.checked = false;
-  start();
+  start().catch(ignoreChatCancelled);
 });
 longToggle?.addEventListener("change", () => { longMode = !!longToggle.checked; setModeUI(); });
 themeToggle?.addEventListener("change", applyTheme);
 ttsToggle?.addEventListener("change", applyTTS);
 privacyToggle?.addEventListener("change", setModeUI);
 gradeSelect?.addEventListener("change", () => { applyKidsModeUI(); setModeUI(); });
-document.querySelectorAll(".cardBtn").forEach(btn => btn.addEventListener("click", () => scenarioSelect(btn.dataset.scn)));
+document.querySelectorAll(".cardBtn").forEach(btn => btn.addEventListener("click", () => scenarioSelect(btn.dataset.scn).catch(ignoreChatCancelled)));
 toBottomBtn?.addEventListener("click", scrollBottom);
 
 // Summary events
@@ -2410,7 +2972,7 @@ exportStats?.addEventListener("click", () => {
 newStudent?.addEventListener("click", () => {
   closeSummaryModal();
   if (kioskMode && studentIdEl) studentIdEl.value = "";
-  start();
+  start().catch(ignoreChatCancelled);
 });
 
 // Teacher modal
@@ -2432,4 +2994,4 @@ applyTTS();
 applyKidsModeUI();
 setModeUI();
 updateCharUI();
-start();
+start().catch(ignoreChatCancelled);

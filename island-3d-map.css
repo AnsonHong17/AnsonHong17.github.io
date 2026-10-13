@@ -1,0 +1,141 @@
+/* ============================================================
+   KAWAN CBT 5.0 — INTERACTIVE 3D ILLUSTRATED ISLAND MAP
+   Original islands remain real buttons using data-adventure.
+   No authentication, records, or CBT JS is touched.
+   ============================================================ */
+.adventure-map-3d { background:#70cce9; }
+.adventure-map-3d .map-compass,
+.adventure-map-3d .map-sparkle { display:none; }
+.adventure-map-3d .world-scene-3d { display:block; }
+
+@media (min-width:781px) {
+  .adventure-map-3d {
+    display:block;
+    width:100%;
+    height:auto;
+    min-height:0;
+    aspect-ratio:1672 / 941;
+    padding:0;
+    border-bottom:0;
+    overflow:hidden;
+    isolation:isolate;
+  }
+  .adventure-map-3d .world-scene-3d {
+    position:absolute;inset:0;z-index:0;
+    width:100%;height:100%;object-fit:cover;
+    pointer-events:none;user-select:none;
+  }
+  .adventure-map-3d::after {
+    pointer-events:none;z-index:1;
+    box-shadow:inset 0 0 30px #ffffff55,inset 0 -7px 19px #206c8a24;
+  }
+  .adventure-map-3d .adventure-map-hint {
+    top:2%; z-index:4; padding:9px 16px;
+    font-size:clamp(11px,1vw,15px);
+    background:#ffffffeb;
+    border:2px solid #fff;
+    box-shadow:0 5px 0 #b4cce3,0 12px 22px #305c9440;
+  }
+  /* Invisible semantic hotspots match the rendered signs on the 3D islands.
+     Their labels are still read by screen readers via aria-label. */
+  .adventure-map-3d .island {
+    position:absolute;z-index:3;
+    top:auto;bottom:auto;left:auto;right:auto;
+    display:block;
+    height:23%;min-height:0;width:23%;
+    padding:0;margin:0;border:0;
+    border-radius:30px;background:transparent;color:transparent;
+    box-shadow:none;filter:none;opacity:1;
+    transform:none;transition:transform .2s ease;
+    cursor:pointer;outline:none;will-change:auto;
+  }
+  .adventure-map-3d .island-feelings { left:12%;top:15%; }
+  .adventure-map-3d .island-thoughts { left:65%;top:15%;width:25%; }
+  .adventure-map-3d .island-calm { left:14%;top:58%;width:24%;height:23%; }
+  .adventure-map-3d .island-story { left:69%;top:59%;width:24%;height:23%; }
+  .adventure-map-3d .island-zone,
+  .adventure-map-3d .island-scene,
+  .adventure-map-3d .island-name,
+  .adventure-map-3d .island-game,
+  .adventure-map-3d .island-action { display:none; }
+  .adventure-map-3d .island::before {
+    content:'';position:absolute;inset:0;border:3px solid #ffffffed;
+    border-radius:24px;background:#fff4;opacity:0;
+    box-shadow:0 0 0 3px #2f86a999,0 9px 24px #00356744;
+    pointer-events:none;transition:opacity .2s ease;
+  }
+  .adventure-map-3d .island::after {
+    content:'✦  Klik untuk teroka';position:absolute;inset:auto auto 7% 50%;
+    transform:translateX(-50%);width:max-content;max-width:100%;
+    display:block;opacity:0;
+    background:#fffffff5;color:#315773;border:2px solid #fff;
+    border-radius:999px;padding:6px 13px;
+    font-weight:900;font-size:clamp(10px,.95vw,14px);
+    box-shadow:0 5px 16px #22558649;
+    transition:opacity .2s ease;pointer-events:none;
+  }
+  .adventure-map-3d .island:hover,
+  .adventure-map-3d .island:focus-visible { transform:translateY(-3px);box-shadow:none;filter:none; }
+  .adventure-map-3d .island:hover::before,
+  .adventure-map-3d .island:hover::after,
+  .adventure-map-3d .island:focus-visible::before,
+  .adventure-map-3d .island:focus-visible::after { opacity:1; }
+  .adventure-map-3d .island:focus-visible { outline:4px solid #224f9b;outline-offset:0; }
+  .adventure-map-3d .island:active { transform:translateY(2px); }
+  .adventure-map-3d .island-check {
+    display:none;right:0;top:0;width:clamp(23px,2.5vw,38px);
+    height:clamp(23px,2.5vw,38px);font-size:clamp(13px,1.6vw,20px);
+    color:#fff;background:#15836e;border:3px solid #fff;border-radius:50%;
+    box-shadow:0 4px 9px #0f5e6260;
+  }
+  .adventure-map-3d .island.is-visited .island-check { display:flex; }
+  /* Keep existing live mascot note and its refresh button functional. */
+  .adventure-map-3d .map-mascot-bubble {
+    position:absolute;z-index:4;
+    left:50%;top:auto;bottom:2%;
+    transform:translateX(-50%);
+    width:min(330px,36%);min-height:54px;
+    grid-template-columns:50px minmax(0,1fr) 29px;
+    gap:7px;padding:6px 10px;border-radius:18px;
+    background:#fffcf5ed;border:2px solid #fff;
+    box-shadow:0 5px 0 #bed8ea,0 9px 21px #2f5b9154;
+    font-size:clamp(11px,1.1vw,13px);
+  }
+  .adventure-map-3d .map-mascot-bubble::after { display:none; }
+  .adventure-map-3d .map-mascot-bubble .map-mascot-icon {
+    width:48px;height:46px;flex-basis:auto;border-radius:15px;
+  }
+  .adventure-map-3d .map-mascot-bubble .map-mascot-icon svg { width:44px;height:41px; }
+  .adventure-map-3d .map-mascot-bubble #mascotSays {font-size:inherit;max-width:none;}
+}
+/* The 3D art has embedded text. On tablets/phones those labels would become
+   too small. Show the art in full, then retain the existing accessible cards. */
+@media (max-width:780px) {
+  .adventure-map-3d {
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    min-height:0;gap:20px 14px;
+    background:linear-gradient(#a5e5f7,#dff8ed);
+    padding:64px 15px 27px;
+  }
+  .adventure-map-3d .world-scene-3d {
+    position:relative;grid-column:1/-1;width:100%;height:auto;
+    aspect-ratio:1672 / 941;object-fit:cover;
+    border-radius:22px;border:3px solid #fff;
+    box-shadow:0 7px 0 #9acbdf,0 16px 24px #366b9954;
+    pointer-events:none;
+  }
+  .adventure-map-3d .adventure-map-hint { top:14px;z-index:4; }
+  .adventure-map-3d .island {position:relative;}
+  .adventure-map-3d .map-mascot-bubble {grid-column:1/-1;order:5;}
+}
+@media (max-width:540px) {
+  .adventure-map-3d {padding:59px 10px 23px;gap:14px 9px;}
+  .adventure-map-3d .world-scene-3d {border-radius:15px;border-width:2px;}
+  .adventure-map-3d .adventure-map-hint {font-size:10px;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .adventure-map-3d .island,
+  .adventure-map-3d .island::before,
+  .adventure-map-3d .island::after {transition:none!important;}
+  .adventure-map-3d .island:hover { transform:none; }
+}

@@ -3,11 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#eaf5ff" />
+  <meta name="theme-color" content="#dceefa" />
   <meta name="description" content="Kawan CBT — ruang mesra untuk murid mengenali emosi, memahami fikiran dan memilih langkah kecil." />
-  <title>Kawan CBT — Teman untuk Hati</title>
+  <title>Kawan CBT 5.2 — 3D World + Temujanji GBK</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="records-styles.css" />
+  <link rel="stylesheet" href="adventure-4.css" />
+  <link rel="stylesheet" href="visual-4-1.css" />
+  <link rel="stylesheet" href="chat-typing-4-2-2.css" />
+  <link rel="stylesheet" href="integrated-5.css" />
+  <link rel="stylesheet" href="island-3d-map.css?v=3d-1" />
+  <link rel="stylesheet" href="dashboard-pro.css?v=pro-1" />
+  <link rel="stylesheet" href="appointments.css?v=52-1" />
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -36,7 +43,7 @@
         </span>
         <span class="brand-copy">
           <span class="brand-name">kawan<span>cbt</span></span>
-          <span class="brand-tagline">Teman kecil untuk emosi besar.</span>
+          <span class="brand-tagline">Teman kecil untuk emosi besar. <span class="v4-version-mark">✦ 5.2 beta</span></span>
         </span>
       </a>
 
@@ -56,10 +63,21 @@
               <label class="switch"><input id="ttsToggle" type="checkbox" /><span class="switch-track"></span><span class="switch-copy"><strong>Suara</strong><small>Dengar mesej Kawan CBT</small></span></label>
               <label class="switch"><input id="privacyToggle" type="checkbox" checked /><span class="switch-track"></span><span class="switch-copy"><strong>Privasi ON</strong><small>Jangan simpan rekod sesi</small></span></label>
             </div>
+            <div class="a11y-panel" aria-label="Tetapan aksesibiliti">
+              <h3>♿ Mod mesra semua murid</h3>
+              <p>Ubah paparan ikut keselesaan. Tetapan ini hanya untuk tab ini.</p>
+              <div class="a11y-choices">
+                <label><input id="a11yLarge" type="checkbox" /> Teks besar</label>
+                <label><input id="a11yContrast" type="checkbox" /> Kontras jelas</label>
+                <label><input id="a11yMotion" type="checkbox" /> Kurang gerakan</label>
+                <label><input id="a11yReading" type="checkbox" /> Mudah dibaca</label>
+              </div>
+            </div>
             <div class="settings-actions"><button id="clearDataBtn" class="btn btn-subtle" type="button">🧹 Padam statistik & kegemaran</button></div>
           </div>
         </details>
         <button id="teacherBtn" class="btn btn-soft" type="button"><span aria-hidden="true">✳</span><span>Panduan guru</span></button>
+        <button id="appointmentBtn" class="btn btn-soft appointment-nav-btn" type="button"><span aria-hidden="true">📅</span><span>Temujanji GBK</span></button>
         <button id="recordsBtn" class="btn btn-soft" type="button"><span aria-hidden="true">▤</span><span>Rekod</span></button>
         <button id="resetBtn" class="btn btn-primary" type="button"><span aria-hidden="true">↻</span><span>Sesi baharu</span></button>
       </div>
@@ -69,13 +87,15 @@
       <div class="hero-glow hero-glow-a" aria-hidden="true"></div>
       <div class="hero-glow hero-glow-b" aria-hidden="true"></div>
       <div class="hero-copy">
-        <div class="hero-kicker"><span class="live-dot"></span> RUANG SELAMAT UNTUK BERCERITA</div>
-        <h1>Tak perlu simpan<br /><span>semuanya seorang diri.</span></h1>
-        <p>Kita kenal perasaan, faham apa yang berlaku, kemudian pilih satu langkah kecil bersama-sama.</p>
-        <div class="hero-signature"><span class="signature-spark">✦</span><span>Tak perlu sempurna. Mula dengan apa yang kamu rasa.</span></div>
+        <div class="hero-kicker"><span class="live-dot"></span> SELAMAT DATANG KE DUNIA EMOSI</div>
+        <h1>Setiap perasaan<br /><span>ada dunianya.</span></h1>
+        <p>Ikut Kawan menjelajah dunia yang penuh warna. Kenali emosi, fahami fikiran, dan temui langkah kecil yang sesuai dengan diri kamu.</p>
+        <div class="hero-ctas"><a class="btn btn-primary hero-go" href="#dunia-emosi">✦ Jom teroka dunia emosi <span aria-hidden="true">→</span></a><a class="btn btn-soft hero-chat" href="#ruang-sembang">Saya nak bercerita <span aria-hidden="true">↗</span></a><button class="btn btn-soft hero-appointment" id="appointmentHeroBtn" type="button">📅 Mohon sesi dengan cikgu <span aria-hidden="true">↗</span></button></div>
+        <div class="hero-signature"><span class="signature-spark">✦</span><span>Tak ada perasaan yang salah. Kamu boleh mula perlahan-lahan.</span></div>
       </div>
       <div class="hero-art" aria-label="Dunia ilustrasi Kawan CBT yang mesra" role="img">
-        <img class="hero-scene" src="wonderland-scene.svg" alt="" aria-hidden="true" />
+        <span class="hero-art-ribbon" aria-hidden="true">✦ DUNIA YANG PENUH KEAJAIBAN ✦</span>
+        <img class="hero-scene" src="hero-world-4-1.svg" alt="" aria-hidden="true" />
         <div class="art-orbit orbit-one" aria-hidden="true"></div>
         <div class="art-orbit orbit-two" aria-hidden="true"></div>
         <span class="art-spark spark-one" aria-hidden="true">✦</span>
@@ -98,7 +118,7 @@
           <path d="M54 72l3 8 8 3-8 3-3 8-3-8-8-3 8-3 3-8Z" fill="#b9a9f3" />
           <circle cx="220" cy="132" r="5" fill="#efa6a2" />
         </svg>
-        <div class="mascot-note"><span class="note-icon">⭐</span><span><strong>Misi kamu hari ini</strong><small>Kenal emosi, satu langkah kecil.</small></span></div>
+        <div class="mascot-note"><span class="note-icon">⭐</span><span><strong>Kawan sedia menemani!</strong><small>Satu langkah kecil pun bermakna.</small></span></div>
       </div>
       <div class="hero-path" aria-label="Langkah sesi">
         <div class="path-step"><span class="path-number">01</span><span>Kenal emosi</span></div>
@@ -115,7 +135,78 @@
       <span class="welcome-decoration" aria-hidden="true">✿</span>
     </section>
 
-    <div class="workspace">
+    <!-- Kawan CBT 4.0: standalone, optional emotion-adventure activities -->
+    <section class="adventure-world" id="dunia-emosi" aria-labelledby="adventureTitle">
+      <div class="adventure-heading">
+        <div class="adventure-heading-copy">
+          <span class="world-eyebrow">✦ SELAMAT DATANG KE DUNIA AJAIB ✦</span>
+          <h2 id="adventureTitle">Peta <span>Pengembaraan Emosi</span></h2>
+          <p>Empat destinasi ajaib menanti kamu. Pilih tempat yang menarik hatimu — setiap langkah ialah peluang untuk lebih memahami diri.</p>
+        </div>
+        <div class="adventure-control-panel" aria-label="Tetapan pengembaraan">
+          <div class="adventure-progress" aria-live="polite"><span class="adventure-progress-icon" aria-hidden="true">⭐</span><span><strong id="adventureCounter">0 daripada 3</strong><small>aktiviti diterokai</small></span></div>
+          <div class="adventure-level" role="group" aria-label="Tahap paparan">
+            <span>Mod bacaan</span>
+            <div class="adventure-level-options">
+              <button type="button" class="level-chip is-selected" data-level="auto" aria-pressed="true">Auto</button>
+              <button type="button" class="level-chip" data-level="lower" aria-pressed="false">Tahun 1–3</button>
+              <button type="button" class="level-chip" data-level="upper" aria-pressed="false">Tahun 4–6</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="adventure-map adventure-map-3d" aria-label="Peta 3D interaktif aktiviti emosi">
+        <img class="world-scene-3d" src="emotion-world-3d.webp" alt="" width="1672" height="941" decoding="async" fetchpriority="high" />
+        <div class="adventure-map-hint"><span aria-hidden="true">🗺️</span> PILIH DESTINASI · JOM MULA!</div>
+        <div class="map-compass" aria-hidden="true"><span>✦</span><small>DUNIA<br/>EMOSI</small></div>
+        <span class="map-sparkle map-sparkle-1" aria-hidden="true">✦</span><span class="map-sparkle map-sparkle-2" aria-hidden="true">✧</span><span class="map-sparkle map-sparkle-3" aria-hidden="true">✦</span>
+        <button type="button" class="island island-feelings" data-adventure="feelings" aria-label="Buka Roda Emosi — kenali perasaan kamu">
+          <span class="island-zone" aria-hidden="true">DESTINASI 01</span>
+          <span class="island-scene" aria-hidden="true"><img src="feeling-island.svg" alt="" loading="eager" /></span>
+          <span class="island-name">Pulau Perasaan</span><span class="island-game">Roda Emosi</span><span class="island-action">Teroka <span aria-hidden="true">↗</span></span>
+          <span class="island-check" aria-hidden="true">✓</span>
+        </button>
+        <button type="button" class="island island-thoughts" data-adventure="detective" aria-label="Buka Hutan Fikiran — permainan Detektif Pemikiran">
+          <span class="island-zone" aria-hidden="true">DESTINASI 02</span>
+          <span class="island-scene" aria-hidden="true"><img src="thought-island.svg" alt="" loading="eager" /></span>
+          <span class="island-name">Hutan Fikiran</span><span class="island-game">Detektif Pemikiran</span><span class="island-action">Teroka <span aria-hidden="true">↗</span></span>
+          <span class="island-check" aria-hidden="true">✓</span>
+        </button>
+        <button type="button" class="island island-calm" data-adventure="thermometer" aria-label="Buka Gunung Tenang — Termometer Emosi">
+          <span class="island-zone" aria-hidden="true">DESTINASI 03</span>
+          <span class="island-scene" aria-hidden="true"><img src="calm-island.svg" alt="" loading="eager" /></span>
+          <span class="island-name">Gunung Tenang</span><span class="island-game">Termometer Emosi</span><span class="island-action">Teroka <span aria-hidden="true">↗</span></span>
+          <span class="island-check" aria-hidden="true">✓</span>
+        </button>
+        <button type="button" class="island island-story" data-adventure="story" aria-label="Pergi ke Teluk Cerita — ruang bercerita bersama Kawan CBT">
+          <span class="island-zone" aria-hidden="true">DESTINASI 04</span>
+          <span class="island-scene" aria-hidden="true"><img src="story-island.svg" alt="" loading="eager" /></span>
+          <span class="island-name">Teluk Cerita</span><span class="island-game">Sembang dengan Kawan</span><span class="island-action">Bercerita <span aria-hidden="true">↗</span></span>
+        </button>
+        <div class="map-mascot-bubble"><span class="map-mascot-icon" aria-hidden="true"><svg viewBox="0 0 80 70"><path d="M16 48Q1 46 7 31q4-11 20-9Q34 3 50 10q11 4 13 15 16-2 18 13Q82 54 66 55H19Z" fill="#dcfff3" stroke="#3c9789" stroke-width="3"/><ellipse cx="35" cy="37" rx="3" ry="4" fill="#2d6265"/><ellipse cx="55" cy="37" rx="3" ry="4" fill="#2d6265"/><path d="M37 45q8 8 16 0" stroke="#2d6265" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="25" cy="42" r="5" fill="#efb0b6"/><circle cx="63" cy="42" r="5" fill="#efb0b6"/><path d="m66 8 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z" fill="#ffcb61"/></svg></span><span id="mascotSays">Hai! Kamu boleh mula dari mana-mana.</span><button id="mascotTipBtn" type="button" aria-label="Dengar pesanan Kawan yang lain">↻</button></div>
+      </div>
+      <section class="journey-pick" aria-label="Pengembaraan saya">
+        <div><span class="journey-eyebrow">✦ IKUT RENTAK KAMU</span><h3>Hari ini kamu mahu cuba apa?</h3><p>Pilih ikut keselesaan. Ini bukan ujian dan tiada pilihan yang salah.</p></div>
+        <div class="journey-goals" role="group" aria-label="Pilihan pengembaraan peribadi">
+          <button type="button" data-journey-goal="know" aria-pressed="false">🌈 Kenal emosi</button>
+          <button type="button" data-journey-goal="calm" aria-pressed="false">🌤️ Rasa lebih tenang</button>
+          <button type="button" data-journey-goal="thought" aria-pressed="false">🔎 Fahami fikiran</button>
+          <button type="button" data-journey-goal="story" aria-pressed="false">💬 Nak bercerita</button>
+        </div>
+        <p id="journeyNote" aria-live="polite">Pilih satu perkara dan Kawan akan tunjukkan tempat yang boleh kamu cuba.</p>
+        <small id="journeyActivities">0 / 3 aktiviti asas telah dicuba</small>
+      </section>
+      <section class="extra-games" aria-label="Aktiviti CBT tambahan">
+        <button type="button" class="extra-game-open" data-extra-game="fact"><strong>🔍 Fakta atau Andaian?</strong><span>Bezakan apa yang benar-benar berlaku dengan tekaan fikiran.</span></button>
+        <button type="button" class="extra-game-open" data-extra-game="steps"><strong>🌱 Misi Langkah Kecil</strong><span>Cuba pilih satu tindakan lembut dan selamat untuk hari ini.</span></button>
+      </section>
+      <div class="adventure-bottom">
+        <div class="adventure-safety"><span aria-hidden="true">♡</span><span><strong>Perasaan kamu penting.</strong> Kalau kamu tidak selamat, beritahu guru atau orang dewasa yang dipercayai.</span></div>
+        <div class="adventure-privacy"><span aria-hidden="true">🔒</span> Aktiviti peta ini tidak dihantar ke rekod GBK.</div>
+      </div>
+    </section>
+
+    <div class="workspace" id="ruang-sembang">
       <aside class="side-column">
         <section class="journey-card">
           <div class="section-label"><span class="label-dot"></span> PERJALANAN KAMU</div>
@@ -123,12 +214,12 @@
           <div class="progress-topline"><span id="stepPill" class="step-counter">Langkah: 0/11</span><span class="tiny-caption">Tak perlu tergesa-gesa</span></div>
           <div class="progress-track" role="progressbar" aria-label="Kemajuan sesi" aria-valuemin="0" aria-valuemax="11" aria-valuenow="0"><div id="progressBar" class="barFill"></div></div>
           <p id="stepExplain" class="step-explain">Penerangan: Pilih situasi supaya Kawan CBT faham konteks kamu.</p>
-          <div class="mode-row"><span id="modePill" class="status-pill">Mode: Normal</span><span id="hintPill" class="status-pill hint-pill">Tip: boleh taip</span></div>
+          <div class="mode-row"><span id="modePill" class="status-pill">Mode: Normal</span><span id="hintPill" class="status-pill hint-pill">Smart 4.2 · boleh taip sendiri</span></div>
         </section>
 
         <section class="scenario-card">
           <div id="scenarioArea" class="scenarioArea">
-            <div class="scenario-heading"><span class="section-label"><span class="label-dot lilac-dot"></span> MULA DI SINI</span><h2>Apa yang bermain<br />dalam fikiran kamu?</h2><p>Pilih yang paling dekat dengan keadaan kamu hari ini.</p></div>
+            <div class="scenario-heading"><span class="section-label"><span class="label-dot lilac-dot"></span> MULA DI SINI</span><h2>Apa yang bermain<br />dalam fikiran kamu?</h2><p>Pilih situasi, atau terus taip cerita kamu sendiri — Kawan akan cuba ikut apa yang kamu tulis.</p></div>
             <div class="scenarioGrid">
               <button class="cardBtn scenario-exam" data-scn="exam" type="button"><span class="cardIcon">📚</span><span class="cardText"><span class="cardH">Peperiksaan</span><span class="cardP">Markah, ujian atau kerja sekolah</span></span><span class="cardArrow">↗</span></button>
               <button class="cardBtn scenario-bully" data-scn="bully" type="button"><span class="cardIcon">🛡️</span><span class="cardText"><span class="cardH">Buli atau diejek</span><span class="cardP">Diganggu atau rasa tak selamat</span></span><span class="cardArrow">↗</span></button>
@@ -152,7 +243,7 @@
           <header class="conversation-head">
             <div class="conversation-identity">
               <span class="chat-avatar" aria-hidden="true"><svg viewBox="0 0 60 60"><path d="M13 39c-7 0-10-5-9-11 1-5 6-8 12-8 2-8 9-12 16-11 7 1 11 5 13 12 7-1 12 4 12 10 0 7-5 12-13 12H13Z" fill="#cceee1" stroke="#4b8a76" stroke-width="2"/><circle cx="23" cy="27" r="2.4" fill="#28473e"/><circle cx="36" cy="27" r="2.4" fill="#28473e"/><path d="M24 33q5 5 10 0" fill="none" stroke="#28473e" stroke-width="2" stroke-linecap="round"/></svg></span>
-              <span><strong>Ruang sembang</strong><small><span class="online-dot"></span> Kawan CBT sedia mendengar</small></span>
+              <span><strong>Ruang sembang</strong><small><span class="online-dot"></span> Kawan CBT sedia mendengar</small><small id="kawanMoodLine" aria-live="off">Hai! Jom teroka satu langkah kecil. ☁️</small></span>
             </div>
             <button id="toBottomBtn" class="icon-button" type="button" title="Pergi ke mesej terkini" aria-label="Pergi ke mesej terkini">↓</button>
           </header>
@@ -160,7 +251,7 @@
           <div class="conversation-bottom">
             <section class="optionsWrap" aria-label="Pilihan jawapan"><div id="optionsTitle" class="optionsTitle">Pilih jawapan (atau taip):</div><div id="options" class="options"></div></section>
             <form id="form" class="inputBar">
-              <div class="inputCol"><label class="sr-only" for="input">Taip jawapan kamu</label><textarea id="input" rows="1" maxlength="1000" placeholder="Taip di sini… satu ayat pendek pun okay." autocomplete="off"></textarea><div class="charRow"><span id="charHint" class="charHint">Tip: satu ayat pendek pun okay.</span><span id="charCount" class="charCount">0/280</span></div></div>
+              <div class="inputCol"><label class="sr-only" for="input">Taip jawapan kamu</label><textarea id="input" rows="1" maxlength="1000" placeholder="Cerita dengan ayat sendiri… satu ayat pun okay." autocomplete="off"></textarea><div class="charRow"><span id="charHint" class="charHint">Tip: satu ayat pendek pun okay.</span><span id="charCount" class="charCount">0/280</span></div></div>
               <button class="btn btn-send" type="submit"><span>Hantar</span><span aria-hidden="true">↗</span></button>
             </form>
             <div class="input-footnote"><span aria-hidden="true">🔒</span><span>Kongsi setakat yang kamu selesa. Jangan masukkan nama penuh atau maklumat peribadi yang tidak perlu.</span></div>
@@ -172,6 +263,26 @@
 
     <footer class="site-footer"><span>Made with care <span aria-hidden="true">♡</span></span><span>Kawan CBT <span class="footer-separator">·</span> Kenal emosi, fahami fikiran, pilih langkah kecil.</span></footer>
 
+    <!-- Independent activity dialog: intentionally stores no student answers. -->
+    <dialog id="adventureDialog" class="adventure-dialog" aria-labelledby="adventureDialogTitle">
+      <div class="adventure-dialog-inner">
+        <div class="adventure-dialog-top">
+          <div><span id="adventureDialogKicker" class="adventure-dialog-kicker">AKTIVITI EMOSI</span><h2 id="adventureDialogTitle">Jom teroka!</h2></div>
+          <button type="button" id="closeAdventure" class="adventure-close" aria-label="Tutup aktiviti">✕</button>
+        </div>
+        <div id="adventureBody" class="adventure-body"></div>
+        <div class="adventure-dialog-foot"><span aria-hidden="true">♡</span> Ini ruang belajar, bukan ujian atau diagnosis. Kamu boleh berhenti bila-bila masa.</div>
+      </div>
+    </dialog>
+
+    <dialog id="extraGameDialog" class="extra-game-dialog" aria-labelledby="extraGameTitle">
+      <div class="extra-game-inner">
+        <div class="extra-game-top"><h2 id="extraGameTitle">Misi CBT</h2><button id="closeExtraGame" type="button" aria-label="Tutup aktiviti">✕ Tutup</button></div>
+        <div id="extraGameContent" class="extra-game-content"></div>
+        <div class="extra-game-foot">Aktiviti untuk pembelajaran, bukan diagnosis. Jawapan tidak dihantar ke rekod.</div>
+      </div>
+    </dialog>
+
     <!-- Rumusan sesi -->
     <div id="summaryModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="summaryTitle">
       <div class="modalBackdrop" data-close="summary"></div>
@@ -180,7 +291,7 @@
         <div class="summaryTabs"><button id="tabMurid" class="tabBtn active" type="button">Untuk murid</button><button id="tabGuru" class="tabBtn" type="button">Untuk guru</button></div>
         <div id="summaryContent" class="summaryContent"></div>
         <div id="saveRecordMessage" class="recordsMessage" role="status" aria-live="polite"></div>
-        <div class="modalActions"><button id="copySummary" class="btn btn-soft" type="button">Copy rumusan</button><button id="copyTeacherSummary" class="btn btn-soft" type="button">Copy ringkasan guru</button><button id="exportStats" class="btn btn-soft" type="button">Copy statistik</button><button id="saveRecordBtn" class="btn btn-primary" type="button">💾 Simpan rekod</button><button id="newStudent" class="btn btn-primary" type="button">Sesi baharu ↗</button></div>
+        <div class="modalActions"><button id="copySummary" class="btn btn-soft" type="button">Copy rumusan</button><button id="copyTeacherSummary" class="btn btn-soft" type="button">Copy ringkasan guru</button><button id="exportStats" class="btn btn-soft" type="button">Copy statistik</button><button id="saveRecordBtn" class="btn btn-primary" type="button">📨 Hantar kepada GBK</button><button id="newStudent" class="btn btn-primary" type="button">Sesi baharu ↗</button></div>
       </div>
     </div>
 
@@ -194,13 +305,85 @@
       </div>
     </div>
 
+    <!-- Borang permohonan, bukan sistem tempahan slot secara langsung -->
+    <div id="appointmentModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="appointmentTitle">
+      <div class="modalBackdrop" data-appointment-close></div>
+      <div class="modalCard appointment-modal-card">
+        <div class="modalTop"><div><span class="modal-eyebrow">🌷 RUANG BERTEMU GURU KAUNSELING</span><div id="appointmentTitle" class="modalH">Mohon temujanji dengan cikgu</div></div><button id="closeAppointment" class="iconBtn" type="button" aria-label="Tutup borang temujanji">✕</button></div>
+        <div id="appointmentFormSection">
+          <p class="appointment-intro">Jika kamu mahu berbual secara bersemuka dengan Guru Bimbingan dan Kaunseling, isi permohonan ini. <strong>Cikgu akan semak dahulu.</strong> Tarikh dan masa belum disahkan.</p>
+          <form id="appointmentForm" class="appointment-form">
+            <label>Nama yang cikgu boleh kenal <span class="required">*</span><input id="appointmentName" name="student_name" type="text" maxlength="70" minlength="2" required autocomplete="off" placeholder="Nama panggilan atau nama murid" /></label>
+            <label>Kelas <span class="required">*</span><input id="appointmentClass" name="class_name" type="text" maxlength="40" minlength="2" required autocomplete="off" placeholder="Contoh: 5 Amanah" /></label>
+            <label>Tarikh yang kamu harapkan <span class="required">*</span><input id="appointmentDate" name="preferred_date" type="date" required /></label>
+            <label>Waktu pilihan <span class="required">*</span><select id="appointmentSlot" name="preferred_time" required><option value="">Pilih waktu</option><option value="Waktu rehat">Waktu rehat</option><option value="Sebelum balik">Sebelum balik</option><option value="Selepas sekolah">Selepas sekolah</option><option value="Ikut masa cikgu">Ikut masa cikgu</option></select></label>
+            <label>Tujuan ringkas <span class="optional">(pilihan)</span><select id="appointmentPurpose" name="request_purpose"><option value="Tidak dinyatakan">Tidak perlu nyatakan</option><option value="Saya mahu bercerita">Saya mahu bercerita</option><option value="Bincang tentang perasaan">Bincang tentang perasaan</option><option value="Bincang tentang sekolah">Bincang tentang sekolah</option></select></label>
+            <div class="appointment-privacy-info"><strong>🔐 Privasi kamu</strong><p>Permohonan hanya boleh dibuka oleh akaun GBK yang diluluskan. Jangan tulis masalah peribadi, nombor telefon atau alamat. Cikgu akan hubungi kamu melalui saluran sekolah yang sesuai, bukan melalui halaman ini.</p></div>
+            <label class="appointment-ack"><input id="appointmentAck" type="checkbox" required /><span>Saya faham ini <strong>permohonan</strong>, bukan temujanji yang sudah disahkan. Saya mahu cikgu menerima maklumat di atas untuk mengatur sesi.</span></label>
+            <p class="appointment-urgent"><strong>Perlukan bantuan segera?</strong> Jika kamu dipukul, diancam atau tidak selamat sekarang, jangan tunggu temujanji. Terus beritahu guru atau orang dewasa yang dipercayai di sekolah.</p>
+            <p id="appointmentStudentMessage" role="status" aria-live="polite" class="appointment-status"></p>
+            <button id="appointmentSubmit" type="submit" class="btn btn-primary appointment-submit">📨 Hantar permohonan</button>
+          </form>
+        </div>
+        <div id="appointmentSuccess" class="appointment-success" hidden tabindex="-1"><div class="appointment-success-icon">💌</div><h3>Permohonan diterima!</h3><p>Permohonan telah dihantar untuk semakan GBK. <strong>Ini bukan pengesahan masa sesi.</strong> Sila semak dengan cikgu melalui saluran sekolah.</p><p>Kod rujukan: <strong id="appointmentReference"></strong></p><p class="appointment-small">Simpan kod ini jika perlu bertanya kepada cikgu. Kod ini bukan kata laluan dan tidak boleh digunakan untuk melihat rekod orang lain.</p><button id="appointmentFinish" type="button" class="btn btn-primary">Selesai</button></div>
+      </div>
+    </div>
+
     <!-- Rekod sesi -->
     <div id="recordsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="recordsModalTitle">
       <div class="modalBackdrop"></div>
       <div class="modalCard recordsModalCard">
         <div class="modalTop"><div><span class="modal-eyebrow">PENGURUSAN SUSULAN</span><div class="modalH" id="recordsModalTitle">Rekod & pengurusan kes</div><p class="recordsIntro">Carian rekod sesi dan tindakan susulan kaunselor.</p></div><button id="closeRecords" class="iconBtn" type="button" aria-label="Tutup rekod">✕</button></div>
         <div class="recordsPrivacyNote"><strong>Rekod sulit GBK:</strong> Rekod hanya dimuatkan selepas log masuk akaun GBK yang diluluskan. Rekod disimpan dalam pangkalan data awan dengan kawalan akses pada pangkalan data. Sediakan Supabase dan dapatkan kelulusan sekolah sebelum memasukkan data sebenar murid.</div>
-        <div class="recordFilters"><div class="recordField recordSearchField"><label for="recordsSearch">Cari kod murid / isu / nota</label><input id="recordsSearch" type="search" placeholder="Contoh: KS-001 atau masalah kawan" autocomplete="off" /></div><div class="recordField"><label for="recordsStatusFilter">Status susulan</label><select id="recordsStatusFilter"><option value="">Semua status</option><option value="Perlu semakan">Perlu semakan</option><option value="Perlu susulan">Perlu susulan</option><option value="Sedang berjalan">Sedang berjalan</option><option value="Selesai">Selesai</option></select></div><button id="exportRecordsBtn" class="btn btn-soft exportRecordsBtn" type="button">↓ Eksport JSON</button></div>
+        <section id="gbkOverview" class="gbk-pro" aria-label="Dashboard Pro Guru Kaunseling" hidden>
+          <div class="gbk-pro-banner">
+            <div><div class="gbk-pro-kicker">🔒 AKSES DISAHKAN · GURU BIMBINGAN DAN KAUNSELING</div><h3>Dashboard Pro <span>✦</span></h3><p>Rekod yang dihantar secara pilihan, semakan kes dan analisis ringkas. Data hanya dimuatkan selepas pengesahan GBK.</p></div>
+            <div class="gbk-pro-banner-icon" aria-hidden="true">📋</div>
+          </div>
+          <div class="gbk-pro-tabs" role="tablist" aria-label="Paparan Dashboard">
+            <button id="gbkTabOverview" role="tab" aria-selected="true" aria-controls="gbkSummaryPanel" type="button">🏠 Keseluruhan</button>
+            <button id="gbkTabAnalytics" role="tab" aria-selected="false" aria-controls="gbkAnalyticsPanel" type="button">📊 Analisis</button>
+            <button id="gbkTabAppointments" role="tab" aria-selected="false" aria-controls="gbkAppointmentsPanel" type="button">📅 Temujanji <span id="gbkAppointmentCount" class="appointment-count" hidden>0</span></button>
+          </div>
+          <div id="gbkSummaryPanel" role="tabpanel" aria-labelledby="gbkTabOverview">
+            <div class="gbk-overview-grid">
+              <div class="gbk-stat"><span class="gbk-stat-icon">📁</span><strong id="gbkTotal">—</strong><span>Jumlah rekod</span></div>
+              <button type="button" class="gbk-stat" id="gbkFilterSubmissions"><span class="gbk-stat-icon">📨</span><strong id="gbkInbox">—</strong><span>Serahan murid ↗</span></button>
+              <button type="button" class="gbk-stat" data-gbk-status="Perlu semakan"><span class="gbk-stat-icon">🔎</span><strong id="gbkPending">—</strong><span>Perlu semakan ↗</span></button>
+              <button type="button" class="gbk-stat" data-gbk-status="Perlu susulan"><span class="gbk-stat-icon">📅</span><strong id="gbkFollow">—</strong><span>Perlu susulan ↗</span></button>
+              <button type="button" class="gbk-stat" data-gbk-status="Selesai"><span class="gbk-stat-icon">🌱</span><strong id="gbkDone">—</strong><span>Selesai ↗</span></button>
+            </div>
+            <div class="gbk-pro-highlights">
+              <div><span>💬 Transkrip dengan persetujuan khusus</span><strong id="gbkTranscriptTotal">—</strong></div>
+              <div><span>⏳ Tarikh susulan telah tiba</span><strong id="gbkDueFollowUps">—</strong></div>
+              <div><span>⚑ Penanda perlu semakan manusia</span><strong id="gbkReviewMarkers">—</strong></div>
+            </div>
+            <p class="gbk-pro-foot">Analisis ini bukan diagnosis, bukan penilaian risiko automatik dan bukan bukti bahawa guru telah dimaklumkan. Sila semak kes satu demi satu.</p>
+          </div>
+          <div id="gbkAnalyticsPanel" role="tabpanel" aria-labelledby="gbkTabAnalytics" hidden>
+            <div class="gbk-pro-analytics-head"><h4>Analisis Keseluruhan</h4><span>Agregat rekod yang dibenarkan sahaja</span></div>
+            <div class="gbk-pro-analytics-grid">
+              <section class="gbk-pro-chart"><h5>Emosi yang dilaporkan</h5><div id="gbkEmotionChart" class="gbk-pro-bars"></div></section>
+              <section class="gbk-pro-chart"><h5>Topik / isu</h5><div id="gbkTopicChart" class="gbk-pro-bars"></div></section>
+              <section class="gbk-pro-chart"><h5>Bilangan sesi mengikut bulan</h5><div id="gbkMonthlyChart" class="gbk-pro-bars"></div></section>
+              <section class="gbk-pro-chart"><h5>Sumber rekod</h5><div id="gbkSourceChart" class="gbk-pro-bars"></div></section>
+            </div>
+            <p class="gbk-pro-foot">Untuk mengurangkan risiko mengenal pasti murid, pecahan analisis hanya ditunjukkan apabila terdapat sekurang-kurangnya 5 rekod; kategori yang terlalu kecil disembunyikan. Bilangan bukan kadar prevalens.</p>
+          </div>
+          <section id="gbkAppointmentsPanel" class="appointment-admin-panel" role="tabpanel" aria-labelledby="gbkTabAppointments" hidden>
+            <div class="appointment-admin-heading">
+              <div><h4>📅 Permohonan Temujanji</h4><p>Hanya GBK yang diluluskan boleh melihat dan mengurus permohonan. Permohonan bukan sesi yang sudah disahkan.</p></div>
+              <button id="refreshAppointments" class="btn btn-soft" type="button">↻ Muat semula</button>
+            </div>
+            <div class="appointment-admin-stats"><div><strong id="appointmentTotal">—</strong><span>Jumlah permohonan</span></div><div><strong id="appointmentNew">—</strong><span>Baharu</span></div><div><strong id="appointmentConfirmed">—</strong><span>Disahkan</span></div></div>
+            <label class="appointment-filter-label">Tapis status
+              <select id="appointmentStatusFilter"><option value="">Semua</option><option>Baharu</option><option>Dalam urusan</option><option>Disahkan</option><option>Selesai</option><option>Tidak dapat diatur</option></select>
+            </label>
+            <p id="appointmentAdminMessage" role="status" aria-live="polite" class="appointment-status"></p>
+            <div id="appointmentAdminList" class="appointment-admin-list"></div>
+          </section>
+        </section>
+        <div class="recordFilters"><div class="recordField recordSearchField"><label for="recordsSearch">Cari kod murid / isu / nota</label><input id="recordsSearch" type="search" placeholder="Contoh: KS-001 atau masalah kawan" autocomplete="off" /></div><div class="recordField"><label for="recordsStatusFilter">Status susulan</label><select id="recordsStatusFilter"><option value="">Semua status</option><option value="Perlu semakan">Perlu semakan</option><option value="Perlu susulan">Perlu susulan</option><option value="Sedang berjalan">Sedang berjalan</option><option value="Selesai">Selesai</option></select></div><div class="recordField"><label for="recordsSourceFilter">Jenis rekod</label><select id="recordsSourceFilter"><option value="">Semua jenis</option><option value="student_submission">Serahan murid</option><option value="gbk_records">Rekod GBK</option><option value="transcript">Transkrip dikongsi</option></select></div><div class="recordExportArea"><label class="recordExportConsent"><input id="exportIncludeTranscript" type="checkbox" /> Sertakan transkrip dalam eksport</label><button id="exportRecordsBtn" class="btn btn-soft exportRecordsBtn" type="button">↓ Eksport JSON</button></div></div>
         <div id="recordsMessage" class="recordsMessage" role="status" aria-live="polite"></div><div id="recordsList" class="recordsList"></div>
         <section id="recordDetail" class="recordDetail hidden" aria-labelledby="recordDetailTitle"><div class="recordDetailTop"><div><h3 id="recordDetailTitle" class="recordDetailTitle">Butiran rekod</h3><p id="recordDetailMeta" class="recordCardMeta"></p></div><button id="backRecordsList" class="btn btn-soft" type="button">← Kembali</button></div><div id="recordDetailContent" class="recordDetailContent"></div><div class="recordEditFields"><div class="recordField"><label for="recordDetailStatus">Status susulan</label><select id="recordDetailStatus"><option value="Perlu semakan">Perlu semakan</option><option value="Perlu susulan">Perlu susulan</option><option value="Sedang berjalan">Sedang berjalan</option><option value="Selesai">Selesai</option></select></div><div class="recordField"><label for="recordDetailFollowUp">Tarikh susulan (jika ada)</label><input id="recordDetailFollowUp" type="date" /></div><div class="recordField recordNotesField"><label for="recordDetailNotes">Catatan kaunselor (elakkan butiran pengenalan yang tidak perlu)</label><textarea id="recordDetailNotes" rows="4" placeholder="Catatan susulan untuk prototaip data rekaan..."></textarea></div></div><div class="recordDetailActions"><button id="saveRecordEdits" class="btn btn-primary" type="button">Simpan perubahan</button><button id="deleteRecordBtn" class="btn btn-danger-soft" type="button">Padam rekod</button></div></section>
       </div>
@@ -208,8 +391,16 @@
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
-  <script src="app.js"></script>
-  <script src="records.js?v=student-inbox-20261012-2"></script>
+  <script src="smart-4-2.js?v=42-01"></script>
+  <script src="smart-4-3.js?v=50-1"></script>
+  <script src="app.js?v=50-1"></script>
+  <script src="records.js?v=gbk-appointment-52"></script>
+  <script src="adventure-4.js"></script>
+  <script src="visual-4-1.js"></script>
+  <script src="kawan-extras.js?v=50-1"></script>
+  <script src="journey-4-5.js?v=50-1"></script>
+  <script src="dashboard-pro.js?v=gbk-appointment-52"></script>
+  <script src="appointments.js?v=52-1"></script>
   <script>
     document.addEventListener('click', function (event) {
       const target = event.target.closest('[data-close]');

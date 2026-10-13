@@ -1,0 +1,33 @@
+/* Kawan CBT 5.2 — pupil appointment requests, not guaranteed booking */
+#gbkAppointmentsPanel[hidden],#appointmentSuccess[hidden],#appointmentFormSection[hidden],#gbkAppointmentCount[hidden]{display:none!important}
+.appointment-modal-card{width:min(680px,calc(100vw - 24px));max-height:min(88vh,900px);overflow-y:auto;padding:clamp(18px,3vw,30px);border-radius:28px}
+.appointment-intro{font-size:15px;line-height:1.75;color:#45677b;margin:12px 0 20px}
+.appointment-form{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.appointment-form>label{display:grid;gap:7px;color:#27495c;font-size:14px;font-weight:800}
+.appointment-form>label:nth-of-type(1),.appointment-form>label:nth-of-type(2){grid-column:span 1}
+.appointment-form input:not([type=checkbox]),.appointment-form select,.appointment-filter-label select,.appointment-admin-card input,.appointment-admin-card select,.appointment-admin-card textarea{width:100%;min-height:48px;border:1.5px solid #bcd8da;border-radius:14px;padding:11px 13px;font:inherit;font-size:15px;background:#fff;color:#24445c}
+.appointment-form input:focus-visible,.appointment-form select:focus-visible,.appointment-admin-card :is(input,select,textarea):focus-visible{outline:3px solid #75b7f4;outline-offset:2px}
+.appointment-form .required{color:#b94657}.appointment-form .optional{color:#7790a0;font-weight:600}
+.appointment-form .appointment-privacy-info,.appointment-form .appointment-ack,.appointment-form .appointment-urgent,.appointment-form .appointment-status,.appointment-form .appointment-submit{grid-column:1/-1}
+.appointment-privacy-info{border:1px solid #bbe5d5;border-radius:17px;padding:13px 16px;background:#ebfaf2;color:#215e57;font-size:14px;line-height:1.6}.appointment-privacy-info p{margin:6px 0 0}
+.appointment-ack{display:flex!important;align-items:flex-start;gap:10px;cursor:pointer;line-height:1.65;font-size:14px;font-weight:500!important;background:#f2f6ff;border:1px solid #d4e3fa;border-radius:16px;padding:13px}.appointment-ack input{accent-color:#238578;margin-top:4px;width:20px;height:20px;flex:none}
+.appointment-urgent{background:#fff2e4;color:#875026;border:1px solid #f3d1a7;padding:13px;border-radius:15px;font-size:13px;line-height:1.65;margin:0}
+.appointment-status{font-size:14px;line-height:1.6;color:#336b76;min-height:1.5em;margin:0}.appointment-status[data-type=error]{color:#ad344d}.appointment-status[data-type=ok]{color:#22785d}
+.appointment-submit{min-height:52px;font-size:16px;font-weight:850}.appointment-submit:disabled{opacity:.65;cursor:wait}
+.appointment-success{text-align:center;padding:22px 10px;line-height:1.7}.appointment-success-icon{font-size:56px}.appointment-success h3{font-size:1.8rem;margin:8px 0;color:#236f69}.appointment-success p{color:#355c70}.appointment-success .appointment-small{font-size:12px;color:#70808a}.appointment-success button{margin-top:12px}
+.appointment-nav-btn,.hero-appointment{white-space:nowrap}
+/* GBK private appointment panel, only rendered after the existing GBK auth */
+.appointment-admin-panel{margin:18px 0;padding:clamp(14px,2vw,22px);background:#f6fbff;border-radius:22px;border:1.5px solid #c8e4e4}
+.appointment-admin-heading{display:flex;justify-content:space-between;align-items:start;gap:16px}.appointment-admin-heading h4{font-size:1.4rem;color:#244e64;margin:0}.appointment-admin-heading p{font-size:13px;line-height:1.6;color:#557384;margin:8px 0}
+.appointment-admin-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.appointment-admin-stats>div{background:#fff;border:1px solid #d7e8e7;border-radius:16px;padding:13px;display:grid;gap:2px}.appointment-admin-stats strong{font-size:1.6rem;color:#247e79}.appointment-admin-stats span{font-size:12px;font-weight:750;color:#597181}
+.appointment-count{display:inline-block;padding:2px 7px;border-radius:99px;background:#ffe5bf;color:#784613;font-size:12px}
+.appointment-filter-label{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:750;margin:12px 0}.appointment-filter-label select{width:min(230px,100%);min-height:42px}
+.appointment-admin-list{display:grid;gap:14px;padding-top:10px}.appointment-admin-card{min-width:0;border:1.5px solid #cfdfdf;background:white;border-radius:19px;padding:16px;box-shadow:0 6px 18px #1945590b}.appointment-card-head{display:flex;justify-content:space-between;align-items:start;gap:14px}.appointment-card-head h5{font-size:17px;margin:0 0 5px;color:#284b62}.appointment-card-head p{font-size:12px;color:#677f8c;margin:0;line-height:1.65}.appointment-status-pill{border-radius:99px;padding:6px 10px;background:#eef7f7;color:#226961;font-size:12px;white-space:nowrap;font-weight:800}
+.appointment-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0;font-size:14px;color:#355970;line-height:1.5}.appointment-details strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#768896}
+.appointment-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}.appointment-edit-grid label{display:grid;gap:7px;font-size:13px;font-weight:800}.appointment-edit-grid label:last-child{grid-column:1/-1}.appointment-admin-card textarea{resize:vertical;min-height:70px}
+.appointment-card-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.appointment-card-foot p{font-size:12px;color:#738490;margin:0}.appointment-card-foot button{min-height:43px}
+body.dark .appointment-modal-card,body.dark .appointment-admin-card{color:#e5f8f4}body.dark .appointment-admin-panel{background:#203b44;border-color:#4c7075}body.dark .appointment-admin-heading h4,body.dark .appointment-card-head h5{color:#e1f8f4}body.dark .appointment-admin-stats>div,body.dark .appointment-admin-card{background:#24454d;border-color:#4c7075}
+@media(max-width:720px){.appointment-form{grid-template-columns:1fr}.appointment-form>label:nth-of-type(1),.appointment-form>label:nth-of-type(2){grid-column:1}.appointment-modal-card{max-height:90vh}.appointment-admin-heading{flex-direction:column}.appointment-details,.appointment-edit-grid{grid-template-columns:1fr}.appointment-admin-stats{gap:6px}.appointment-admin-stats>div{padding:10px}.appointment-admin-stats strong{font-size:1.4rem}}
+
+/* Keep appointments separate from the case-record list. */
+#recordsModal.gbk-appointments-active .recordFilters,#recordsModal.gbk-appointments-active #recordsMessage,#recordsModal.gbk-appointments-active #recordsList,#recordsModal.gbk-appointments-active #recordDetail{display:none!important}

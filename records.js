@@ -13,6 +13,7 @@
   const recordsSearch = document.getElementById("recordsSearch");
   const recordsStatusFilter = document.getElementById("recordsStatusFilter");
   let recordsGbkFilter = document.getElementById("recordsGbkFilter");
+  const recordsSourceFilter = document.getElementById("recordsSourceFilter");
   const recordsList = document.getElementById("recordsList");
   const recordsMessage = document.getElementById("recordsMessage");
   const recordDetail = document.getElementById("recordDetail");
@@ -40,6 +41,12 @@
   let studentSubmitClient = null;
   let studentSubmitConsent = null;
   let studentPrivacyAllow = null;
+  let transcriptOptIn = null;
+  let transcriptReviewed = null;
+  let transcriptPreview = null;
+  let transcriptPreviewButton = null;
+  let transcriptPreviewSnapshot = null;
+  let transcriptDetailBox = null;
   let supabaseClient = null;
   let currentGbkUser = null;
   let currentGbkAuthorized = false;
@@ -55,6 +62,72 @@
   let authSubmitEl = null;
   let logoutButton = null;
   let authInitialization = null;
+  // Kawan CBT 5.0 — shared school computer protection, ONLY while records are open.
+  const GBK_IDLE_MS = 10 * 60 * 1000;
+  let gbkIdleTimer = null;
+  function buildPrivateAnalytics() {
+    // Derived only in GBK-authenticated memory. Never store as localStorage or send externally.
+    const rows = cloudRecordsCache;
+    const countBy = fn => {
+      const counts = Object.create(null);
+      rows.forEach(record => {
+        const key = String(fn(record) || "Tidak dinyatakan").slice(0, 90);
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([label, count]) => ({ label, count }));
+    };
+    const months = Object.create(null);
+    rows.forEach(record => {
+      const dt = new Date(record.ts || record.createdAt || "");
+      if (Number.isNaN(dt.getTime())) return;
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+      months[key] = (months[key] || 0) + 1;
+    });
+    const allMonths = Object.entries(months).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6).map(([label,count])=>({label,count}));
+    const clock = new Date();
+    const today = `${clock.getFullYear()}-${String(clock.getMonth()+1).padStart(2,"0")}-${String(clock.getDate()).padStart(2,"0")}`;
+    return {
+      total: rows.length,
+      withTranscript: rows.filter(r=>r.source === "student_submission" && r.transcriptConsent === true && Array.isArray(r.transcript)).length,
+      newFollowUps: rows.filter(r=>r.followUpDate && r.followUpDate <= today && r.status !== "Selesai").length,
+      reviewMarkers: rows.filter(r=>{const m=r.gbkReview || markerForRecord(r);return !!m.flagged && !m.reviewed;}).length,
+      source: countBy(r=>r.source === "student_submission" ? "Serahan murid" : "Rekod GBK"),
+      emotion: countBy(r=>String(r.emotion || "").trim().slice(0,40) || "Tidak dinyatakan"),
+      topic: countBy(r=>String(r.scenario || r.scenarioKey || "").trim().slice(0,55) || "Tidak dinyatakan"),
+      months: allMonths
+    };
+  }
+  function publishDashboard(clear = false) {
+    if(clear || !currentGbkUser || !currentGbkAuthorized){
+      window.dispatchEvent(new CustomEvent("kawan:gbk-dashboard",{detail:{authorized:false}}));
+      return;
+    }
+    const data = cloudRecordsCache;
+    window.dispatchEvent(new CustomEvent("kawan:gbk-dashboard",{detail:{
+      authorized:true, total:data.length,
+      submissions:data.filter(r=>r.source==="student_submission").length,
+      pending:data.filter(r=>(r.status||"Perlu semakan")==="Perlu semakan").length,
+      follow:data.filter(r=>r.status==="Perlu susulan").length,
+      done:data.filter(r=>r.status==="Selesai").length,
+      analytics:buildPrivateAnalytics()
+    }}));
+  }
+  function stopGbkIdle(){if(gbkIdleTimer!==null){clearTimeout(gbkIdleTimer);gbkIdleTimer=null;}}
+  function armGbkIdle(){
+    stopGbkIdle();
+    if(!currentGbkAuthorized || recordsModal?.classList.contains("hidden"))return;
+    gbkIdleTimer=setTimeout(()=>{
+      closeRecordsModal();
+      setStatusMessage("Sesi GBK tamat secara automatik selepas 10 minit tanpa aktiviti. Sila log masuk semula.","warn");
+    },GBK_IDLE_MS);
+  }
+  ["pointerdown","keydown"].forEach(name=>recordsModal?.addEventListener(name,()=>{
+    if(currentGbkAuthorized)armGbkIdle();
+  },{passive:true}));
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden && currentGbkAuthorized && !recordsModal?.classList.contains("hidden"))closeRecordsModal();
+  });
+
 
   if (cloudConfigured && window.supabase && typeof window.supabase.createClient === "function") {
     supabaseClient = window.supabase.createClient(cloudConfig.supabaseUrl, cloudConfig.supabaseAnonKey, {
@@ -281,7 +354,7 @@
     });
     field.append(label, select);
     const exportBtn = document.getElementById("exportRecordsBtn");
-    filters.insertBefore(field, exportBtn || null);
+    filters.insertBefore(field, exportBtn?.closest(".recordExportArea") || exportBtn || null);
     recordsGbkFilter = select;
     recordsGbkFilter.addEventListener("change", renderRecords);
   }
@@ -318,6 +391,9 @@
       followUpPlan: row.follow_up_plan || "",
       strengthOfDay: row.strength_of_day || "",
       studentSummary: row.student_summary || "",
+      transcriptConsent: row.transcript_consent === true,
+      transcript: row.transcript_consent === true && Array.isArray(row.transcript_data) ? row.transcript_data : null,
+      transcriptSharedAt: row.transcript_shared_at || "",
       status: row.status || "Perlu semakan",
       counselorNotes: row.counselor_notes || "",
       followUpDate: row.follow_up_date || "",
@@ -354,6 +430,7 @@
       })),
       ...(inboxResult.data || []).map(recordFromSubmission)
     ];
+    publishDashboard();
     return true;
   }
 
@@ -449,12 +526,14 @@
 
   function renderRecords() {
     if (!recordsList) return;
+    if(currentGbkAuthorized) publishDashboard();
     const allRecords = loadRecords().slice().sort((a, b) => {
       return new Date(b.ts || b.createdAt || 0).getTime() - new Date(a.ts || a.createdAt || 0).getTime();
     });
     const query = (recordsSearch?.value || "").trim().toLocaleLowerCase();
     const status = recordsStatusFilter?.value || "";
     const gbkFilter = recordsGbkFilter?.value || "";
+    const sourceFilter = recordsSourceFilter?.value || "";
     const filtered = allRecords.filter(record => {
       const marker = record.gbkReview || markerForRecord(record);
       const haystack = [
@@ -462,11 +541,12 @@
         record.counselorNotes, record.recordId,
         ...(marker.categories || []), ...(marker.keywords || [])
       ].join(" ").toLocaleLowerCase();
+      const matchesSource = !sourceFilter || (sourceFilter === "student_submission" && record.source === "student_submission") || (sourceFilter === "gbk_records" && record.source !== "student_submission") || (sourceFilter === "transcript" && record.transcriptConsent === true && Array.isArray(record.transcript));
       const matchesGbk = !gbkFilter ||
         (gbkFilter === "pending" && marker.flagged && !marker.reviewed) ||
         (gbkFilter === "flagged" && marker.flagged) ||
         (gbkFilter === "reviewed" && marker.flagged && marker.reviewed);
-      return (!query || haystack.includes(query)) && (!status || record.status === status) && matchesGbk;
+      return (!query || haystack.includes(query)) && (!status || record.status === status) && matchesGbk && matchesSource;
     });
 
     recordsList.replaceChildren();
@@ -507,7 +587,9 @@
 
       card.append(top);
       if (marker.flagged) card.appendChild(flagRow);
-      card.append(meta, summary, open);
+      card.append(meta, summary);
+      if (record.transcriptConsent === true && Array.isArray(record.transcript)) card.appendChild(safeText("span", "recordTranscriptBadge", "💬 Transkrip dikongsi dengan persetujuan berasingan"));
+      card.append(open);
       recordsList.appendChild(card);
     });
   }
@@ -567,10 +649,6 @@
 
   async function toggleGbkReviewed() {
     if (!activeRecordId) return;
-    if (privacyIsOn()) {
-      setStatusMessage("Privasi ON. Matikan suis Privasi dahulu untuk menyimpan status semakan ke pangkalan data.", "warn");
-      return;
-    }
     const records = loadRecords();
     const index = records.findIndex(record => record.recordId === activeRecordId);
     if (index < 0) return;
@@ -592,6 +670,44 @@
     setStatusMessage(nextReviewed ? "Penanda ditandakan sebagai sudah disemak. Sila pastikan tindakan susulan direkodkan jika perlu." : "Status semakan ditetapkan semula kepada belum disemak.", "success");
   }
 
+  function removeTranscriptDetails() {
+    transcriptDetailBox?.remove();
+    transcriptDetailBox = null;
+  }
+  function renderTranscriptDetails(record) {
+    removeTranscriptDetails();
+    const hasTranscript = record.source === "student_submission" && record.transcriptConsent === true && Array.isArray(record.transcript);
+    const panel = document.createElement("section");
+    panel.className = "gbkTranscriptPanel";
+    const heading = document.createElement("h4");
+    heading.textContent = "💬 Perbualan murid (persetujuan berasingan)";
+    panel.appendChild(heading);
+    if (!hasTranscript) {
+      panel.appendChild(safeText("p", "gbkTranscriptEmpty", "Transkrip penuh tidak dikongsi untuk rekod ini. Hanya ringkasan yang diterima; ini bukan ralat."));
+    } else {
+      panel.appendChild(safeText("p", "gbkTranscriptContext", `${record.transcript.length} mesej · Dikongsi pada ${formatDate(record.transcriptSharedAt)} · Akses GBK sahaja. Sila elakkan penyalinan tidak perlu.`));
+      const details = document.createElement("details");
+      details.className = "gbkTranscriptDisclosure";
+      const summary = document.createElement("summary");
+      summary.textContent = "Buka transkrip yang dikongsi";
+      details.appendChild(summary);
+      const body = document.createElement("div");
+      body.className = "gbkTranscriptMessages";
+      record.transcript.forEach(entry => {
+        if (!entry || typeof entry.text !== "string" || !["murid", "kawan"].includes(entry.role)) return;
+        const line = document.createElement("div");
+        line.className = `gbkTranscriptLine ${entry.role === "murid" ? "fromStudent" : "fromKawan"}`;
+        line.appendChild(safeText("strong", "", entry.role === "murid" ? "Murid" : "Kawan CBT"));
+        line.appendChild(safeText("p", "", entry.text));
+        body.appendChild(line);
+      });
+      details.appendChild(body);
+      panel.appendChild(details);
+    }
+    recordDetailContent.insertAdjacentElement("afterend", panel);
+    transcriptDetailBox = panel;
+  }
+
   function openRecord(recordId) {
     const record = findRecord(recordId);
     if (!record) {
@@ -603,6 +719,7 @@
     recordDetailTitle.textContent = `${record.studentId || "Tanpa Kod Murid"} · ${record.scenario || "Isu tidak dinyatakan"}`;
     recordDetailMeta.textContent = `${formatDate(record.ts || record.createdAt)} · ID rekod: ${record.recordId}`;
     recordDetailContent.textContent = buildRecordDetailText(record);
+    renderTranscriptDetails(record);
     let flagNotice = document.getElementById("recordGbkFlagNotice");
     if (!flagNotice) {
       flagNotice = document.createElement("div");
@@ -630,20 +747,23 @@
   function showRecordList() {
     activeRecordId = null;
     recordDetail.classList.add("hidden");
+    removeTranscriptDetails();
     recordsList.classList.remove("hidden");
     renderRecords();
-    setStatusMessage(privacyIsOn()
-      ? "Privasi ON: rekod baharu dan perubahan tidak disimpan sehingga suis ini dimatikan."
-      : "Rekod sedang dipaparkan daripada pangkalan data untuk akaun GBK yang diluluskan.", "info");
+    setStatusMessage("Rekod sedang dipaparkan daripada pangkalan data untuk akaun GBK yang diluluskan. Privasi murid tidak menjejaskan catatan GBK yang sudah disahkan.", "info");
   }
 
   function openRecordsModal() {
     recordsModal.classList.remove("hidden");
+    publishDashboard();
+    armGbkIdle();
     showRecordList();
     recordsSearch?.focus();
   }
 
   function closeRecordsModal() {
+    stopGbkIdle();
+    publishDashboard(true);
     recordsModal.classList.add("hidden");
     activeRecordId = null;
     recordDetail?.classList.add("hidden");
@@ -652,6 +772,8 @@
     // workspace closes, which is important on shared school devices.
     recordsList?.replaceChildren();
     recordDetailContent?.replaceChildren();
+    removeTranscriptDetails();
+    if (document.getElementById("exportIncludeTranscript")) document.getElementById("exportIncludeTranscript").checked = false;
     if (recordDetailTitle) recordDetailTitle.textContent = "Butiran rekod";
     if (recordDetailMeta) recordDetailMeta.textContent = "";
     if (recordDetailStatus) recordDetailStatus.value = "Perlu semakan";
@@ -674,12 +796,32 @@
       <p>Tiada rekod dihantar secara automatik. Jangan taip nama penuh, nombor kad pengenalan atau alamat. Hanya GBK yang diberi kebenaran boleh membuka serahan dalam sistem ini.</p>
       <label class="studentSubmitConsentLabel"><input id="studentSubmitConsent" type="checkbox" />
       <span>Saya memilih untuk berkongsi ringkasan sesi ini dengan Guru Kaunseling untuk semakan atau susulan.</span></label>
+      <div class="transcriptConsentExtra">
+        <label class="studentSubmitConsentLabel"><input id="shareFullTranscript" type="checkbox" />
+          <span><strong>Kongsi perbualan penuh (pilihan tambahan).</strong> Ini termasuk mesej kamu dan respons Kawan. Jika tidak ditanda, hanya ringkasan dihantar.</span></label>
+        <button id="previewFullTranscript" class="btn btn-soft" type="button" hidden>👀 Pratonton perbualan yang akan dikongsi</button>
+        <div id="transcriptPreviewBox" class="transcriptPreviewBox" hidden aria-live="polite"></div>
+        <label class="studentSubmitConsentLabel" id="transcriptReviewLabel" hidden><input id="transcriptReviewed" type="checkbox" />
+          <span>Saya sudah semak pratonton, faham bahawa perbualan ini hanya untuk GBK, dan saya memilih untuk menghantarnya.</span></label>
+        <p class="transcriptPrivacyTip">Jangan tulis nama penuh, nombor pengenalan, nombor telefon atau alamat. Maklumat tertentu akan disembunyikan secara automatik, tetapi semak teks kerana nama orang tidak semestinya dapat dikesan.</p>
+      </div>
       <p id="studentPrivacyNotice" class="studentPrivacyNotice"></p>
       <button id="studentPrivacyAllow" class="btn btn-soft" type="button">Benarkan penghantaran untuk sesi ini</button>
       <p class="studentSubmitSafety">Jika kamu tidak selamat atau perlukan bantuan segera, beritahu guru atau orang dewasa yang dipercayai sekarang. Penghantaran ini bukan saluran kecemasan.</p>`;
     saveRecordBtn.parentNode?.parentNode?.insertBefore(container, saveRecordBtn.parentNode);
     studentSubmitConsent = document.getElementById("studentSubmitConsent");
     studentPrivacyAllow = document.getElementById("studentPrivacyAllow");
+    transcriptOptIn = document.getElementById("shareFullTranscript");
+    transcriptReviewed = document.getElementById("transcriptReviewed");
+    transcriptPreview = document.getElementById("transcriptPreviewBox");
+    transcriptPreviewButton = document.getElementById("previewFullTranscript");
+    transcriptOptIn?.addEventListener("change", () => {
+      clearTranscriptPreview();
+      const selected = transcriptOptIn.checked;
+      transcriptPreviewButton.hidden = !selected;
+      document.getElementById("transcriptReviewLabel").hidden = !selected;
+    });
+    transcriptPreviewButton?.addEventListener("click", previewStudentTranscript);
     studentSubmitConsent?.addEventListener("change", updateStudentSubmissionControls);
     studentPrivacyAllow?.addEventListener("click", () => {
       if (!studentSubmitConsent?.checked) {
@@ -736,6 +878,62 @@
     return "KC-" + String(Date.now()).slice(-9);
   }
 
+  function redactIdentifiers(text) {
+    return String(text || "")
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[emel disembunyikan]")
+      .replace(/\b\d{6}[- ]?\d{2}[- ]?\d{4}\b/g, "[no. pengenalan disembunyikan]")
+      .replace(/\b(?:\+?60|0)1\d[- ]?\d{3,4}[- ]?\d{4}\b/g, "[telefon disembunyikan]")
+      .replace(/https?:\/\/\S+/gi, "[pautan disembunyikan]");
+  }
+  function captureStudentTranscript() {
+    // Only collect in memory at explicit preview / submission time. No listener
+    // persists chats, and a GBK login must not be required for this step.
+    const messages = [];
+    document.querySelectorAll("#chat .msg").forEach(row => {
+      if (row.classList.contains("kawan-animated-message") && row.querySelector(".kawan-typing-status")) return;
+      const role = row.classList.contains("user") ? "murid" : row.classList.contains("bot") ? "kawan" : "";
+      const bubble = row.querySelector(".bubble");
+      if (!role || !bubble) return;
+      const typed = bubble.querySelector(".kawan-stream-text");
+      const messageText = typed ? typed.textContent : (bubble.lastElementChild?.textContent || "");
+      const clean = redactIdentifiers(messageText.trim());
+      if (clean) messages.push({ role, text: clean });
+    });
+    if (!messages.length) throw new Error("Tiada mesej untuk dikongsi.");
+    if (messages.length > 160 || messages.some(msg => msg.text.length > 4000) || new TextEncoder().encode(JSON.stringify(messages)).length > 80000) {
+      throw new Error("Perbualan terlalu panjang untuk dihantar sepenuhnya. Pilih ringkasan sahaja atau dapatkan bantuan GBK.");
+    }
+    return messages;
+  }
+  function clearTranscriptPreview() {
+    transcriptPreviewSnapshot = null;
+    if (transcriptReviewed) transcriptReviewed.checked = false;
+    if (transcriptPreview) { transcriptPreview.replaceChildren(); transcriptPreview.hidden = true; }
+  }
+  function previewStudentTranscript() {
+    if (!transcriptOptIn?.checked) return;
+    clearTranscriptPreview();
+    try {
+      const transcript = captureStudentTranscript();
+      transcriptPreviewSnapshot = transcript;
+      const intro = safeText("p", "", `${transcript.length} mesej. Nombor tertentu disembunyikan. Semak juga nama orang dan maklumat yang boleh mengenal pasti kamu.`);
+      transcriptPreview.appendChild(intro);
+      const list = document.createElement("div");
+      list.className = "studentTranscriptPreviewList";
+      transcript.forEach(line => {
+        const item = document.createElement("div");
+        item.className = "studentTranscriptPreviewItem";
+        item.appendChild(safeText("strong", "", line.role === "murid" ? "Murid" : "Kawan"));
+        item.appendChild(safeText("p", "", line.text));
+        list.appendChild(item);
+      });
+      transcriptPreview.appendChild(list);
+      transcriptPreview.hidden = false;
+    } catch (error) {
+      setSaveMessage(error.message || "Transkrip tidak dapat dipratonton.", "warn");
+    }
+  }
+
   async function submitStudentRecord() {
     if (currentSavedRecordId) {
       setSaveMessage("Ringkasan sesi ini sudah dihantar. Sesi baharu diperlukan untuk penghantaran seterusnya.", "info");
@@ -748,6 +946,12 @@
     if (privacyIsOn()) {
       setSaveMessage("Privasi ON masih aktif. Tekan Benarkan penghantaran untuk sesi ini terlebih dahulu.", "warn");
       return;
+    }
+    if (transcriptOptIn?.checked) {
+      if (!transcriptReviewed?.checked || !transcriptPreviewSnapshot) {
+        setSaveMessage("Untuk kongsi perbualan penuh, buka Pratonton dan tandakan persetujuan tambahan selepas membacanya.", "warn");
+        return;
+      }
     }
     if (!studentSubmitClient) {
       setSaveMessage("Sistem penghantaran belum disambungkan. Minta bantuan Guru Kaunseling.", "danger");
@@ -786,6 +990,21 @@
       strength_of_day: limitedText(state.strengthOfDay, 500),
       student_summary: limitedText(typeof buildRumusanSesi === "function" ? buildRumusanSesi() : "", 12000)
     };
+    if (transcriptOptIn?.checked) {
+      try {
+        const current = captureStudentTranscript();
+        if (JSON.stringify(current) !== JSON.stringify(transcriptPreviewSnapshot)) {
+          clearTranscriptPreview();
+          setSaveMessage("Perbualan berubah selepas pratonton. Sila semak semula sebelum berkongsi.", "warn");
+          return;
+        }
+        payload.transcript_consent = true;
+        payload.transcript_data = current;
+      } catch (error) {
+        setSaveMessage(error.message || "Transkrip gagal disediakan.", "warn");
+        return;
+      }
+    }
     saveRecordBtn.disabled = true;
     saveRecordBtn.textContent = "⏳ Menghantar…";
     setSaveMessage("Sedang menghantar ringkasan kepada GBK. Jangan tutup halaman ini.", "info");
@@ -795,6 +1014,7 @@
       const { error } = await studentSubmitClient.from(studentSubmissionsTable).insert(payload);
       if (error) throw error;
       currentSavedRecordId = "student-submitted";
+      clearTranscriptPreview();
       state.studentId = code;
       saveRecordBtn.textContent = "✅ Telah dihantar";
       setSaveMessage(`Berjaya dihantar untuk semakan GBK. Kod rujukan murid: ${code}. Simpan kod ini jika guru memerlukannya.`, "success");
@@ -809,10 +1029,6 @@
 
   async function saveActiveRecordEdits() {
     if (!activeRecordId) return;
-    if (privacyIsOn()) {
-      setStatusMessage("Privasi ON. Matikan suis Privasi dahulu untuk menyimpan perubahan ke pangkalan data.", "warn");
-      return;
-    }
     const records = loadRecords();
     const index = records.findIndex(record => record.recordId === activeRecordId);
     if (index < 0) {
@@ -831,6 +1047,7 @@
       return;
     }
     openRecord(activeRecordId);
+    publishDashboard();
     setStatusMessage("Perubahan rekod berjaya disimpan ke pangkalan data.", "success");
   }
 
@@ -850,12 +1067,21 @@
   }
 
   function exportRecords() {
+    if (!currentGbkAuthorized || !currentGbkUser) return;
     const records = loadRecords();
     if (!records.length) {
       setStatusMessage("Tiada rekod untuk dieksport.", "warn");
       return;
     }
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), app: "Kawan CBT", records }, null, 2)], {
+    if (!window.confirm("Eksport fail kes boleh mengandungi cerita murid yang sensitif. Adakah komputer dan lokasi simpanan ini selamat?")) return;
+    const includeTranscript = document.getElementById("exportIncludeTranscript")?.checked === true;
+    if (includeTranscript && !window.confirm("Eksport ini merangkumi transkrip murid yang sensitif. Simpan dalam lokasi dilindungi dan jangan kongsi tanpa kebenaran. Teruskan?")) return;
+    const exportedRecords = records.map(record => {
+      const copy = { ...record };
+      if (!includeTranscript) { delete copy.transcript; delete copy.transcriptSharedAt; }
+      return copy;
+    });
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), app: "Kawan CBT", transcriptIncluded: includeTranscript, records: exportedRecords }, null, 2)], {
       type: "application/json;charset=utf-8"
     });
     const url = URL.createObjectURL(blob);
@@ -934,6 +1160,8 @@
       saveRecordBtn.disabled = false;
     }
     if (studentSubmitConsent) studentSubmitConsent.checked = false;
+    if (transcriptOptIn) { transcriptOptIn.checked = false; transcriptPreviewButton.hidden = true; document.getElementById("transcriptReviewLabel").hidden = true; }
+    clearTranscriptPreview();
     if (privacyToggleEl) privacyToggleEl.checked = true;
     updateStudentSubmissionControls();
     setSaveMessage("", "info");
@@ -1069,6 +1297,9 @@
 
   function closeAuthModal() {
     authModalEl?.classList.add("hidden");
+    // Do not keep credentials inside hidden inputs on a shared school computer.
+    if (authPasswordEl) authPasswordEl.value = "";
+    if (authEmailEl) authEmailEl.value = "";
   }
 
   async function verifyGbkAllowList() {
@@ -1238,6 +1469,7 @@
   recordsModal.querySelector(".modalBackdrop")?.addEventListener("click", closeRecordsModal);
   recordsSearch?.addEventListener("input", renderRecords);
   recordsStatusFilter?.addEventListener("change", renderRecords);
+  recordsSourceFilter?.addEventListener("change", renderRecords);
   backRecordsList?.addEventListener("click", showRecordList);
   // Pupil submit is deliberately separate from the GBK login flow.
   saveRecordBtn.addEventListener("click", submitStudentRecord);
@@ -1268,6 +1500,7 @@
   });
 
   document.getElementById("closeSummary")?.addEventListener("click", () => {
+    clearTranscriptPreview();
     if (summaryModalEl?.classList.contains("hidden")) scheduleKioskResetAfterClose();
     if (currentGbkUser) signOutGbk();
   });
@@ -1297,6 +1530,10 @@
 
   privacyToggleEl?.addEventListener("change", () => {
     if (privacyIsOn()) {
+      if (transcriptOptIn) transcriptOptIn.checked = false;
+      if (transcriptPreviewButton) transcriptPreviewButton.hidden = true;
+      if (document.getElementById("transcriptReviewLabel")) document.getElementById("transcriptReviewLabel").hidden = true;
+      clearTranscriptPreview();
       setSaveMessage("Privasi ON: rekod murid tidak boleh dihantar.", "warn");
     } else {
       setSaveMessage("Privasi OFF: tiada rekod dihantar tanpa persetujuan jelas dan butang Hantar kepada GBK.", "info");
@@ -1312,5 +1549,24 @@
     event.stopImmediatePropagation();
     setSaveMessage("Eksport statistik setempat dinyahaktifkan dalam mod selamat. Log masuk GBK dan gunakan Eksport JSON pada skrin Rekod.", "warn");
   }, true);
+  // Kawan CBT 5.2: minimal, scoped appointment gateway. No GBK token is
+  // persisted or sent to the pupil client. Postgres RLS is the final authority.
+  window.KAWAN_APPOINTMENTS_GBK = Object.freeze({
+    async list() {
+      if (!currentGbkAuthorized || !currentGbkUser || !supabaseClient) return {data:null,error:{message:"Akses GBK diperlukan."}};
+      return supabaseClient.from("gbk_appointments")
+        .select("id,reference_code,student_name,class_name,preferred_date,preferred_time,request_purpose,created_at,status,appointment_at,gbk_note,updated_at")
+        .order("created_at",{ascending:false}).limit(200);
+    },
+    async update(id, values) {
+      if (!currentGbkAuthorized || !currentGbkUser || !supabaseClient) return {data:null,error:{message:"Akses GBK diperlukan."}};
+      if (typeof id !== "string" || !/^[a-f0-9-]{36}$/i.test(id)) return {data:null,error:{message:"ID tidak sah."}};
+      const statuses=["Baharu","Dalam urusan","Disahkan","Selesai","Tidak dapat diatur"];
+      if (!statuses.includes(values?.status)) return {data:null,error:{message:"Status tidak sah."}};
+      if (values.status === "Disahkan" && !(typeof values.appointment_at === "string" && !Number.isNaN(Date.parse(values.appointment_at)))) return {data:null,error:{message:"Sila isi tarikh dan waktu sesi yang sah."}};
+      const payload={status:values.status,appointment_at:values.appointment_at || null,gbk_note:String(values.gbk_note||"").slice(0,500)};
+      return supabaseClient.from("gbk_appointments").update(payload).eq("id",id);
+    }
+  });
   setStatusMessage("Rekod hanya boleh dibuka oleh GBK yang dibenarkan. Murid boleh menghantar ringkasan secara pilihan, tanpa akses membaca rekod.", "info");
 })();
