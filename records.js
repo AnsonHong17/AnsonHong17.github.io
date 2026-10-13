@@ -170,6 +170,14 @@
     if (!saveRecordMessage) return;
     saveRecordMessage.textContent = message;
     saveRecordMessage.dataset.kind = kind;
+    // Keep submission feedback directly below the Hantar button, rather than
+    // invisibly above the long consent / transcript preview section.
+    saveRecordMessage.hidden = !message;
+    saveRecordMessage.setAttribute("role", kind === "danger" ? "alert" : "status");
+    saveRecordMessage.setAttribute("aria-live", kind === "danger" ? "assertive" : "polite");
+    if (message && (kind === "danger" || kind === "warn" || kind === "success")) {
+      try { saveRecordMessage.scrollIntoView({ block: "nearest", behavior: "auto" }); } catch (_) {}
+    }
   }
 
   function makeId() {
@@ -809,6 +817,13 @@
       <button id="studentPrivacyAllow" class="btn btn-soft" type="button">Benarkan penghantaran untuk sesi ini</button>
       <p class="studentSubmitSafety">Jika kamu tidak selamat atau perlukan bantuan segera, beritahu guru atau orang dewasa yang dipercayai sekarang. Penghantaran ini bukan saluran kecemasan.</p>`;
     saveRecordBtn.parentNode?.parentNode?.insertBefore(container, saveRecordBtn.parentNode);
+    // Alert is positioned *after* the action row; otherwise all warnings and
+    // server errors are above the fold when a pupil taps the bottom button.
+    if (saveRecordMessage && saveRecordBtn.parentNode) {
+      saveRecordBtn.parentNode.insertAdjacentElement("afterend", saveRecordMessage);
+      saveRecordMessage.hidden = !saveRecordMessage.textContent.trim();
+      saveRecordBtn.setAttribute("aria-describedby", "saveRecordMessage");
+    }
     studentSubmitConsent = document.getElementById("studentSubmitConsent");
     studentPrivacyAllow = document.getElementById("studentPrivacyAllow");
     transcriptOptIn = document.getElementById("shareFullTranscript");
@@ -940,16 +955,16 @@
       return;
     }
     if (!studentSubmitConsent?.checked) {
-      setSaveMessage("Penghantaran adalah pilihan. Tandakan persetujuan dahulu jika kamu mahu berkongsi dengan GBK.", "warn");
+      setSaveMessage("Belum dihantar: tandakan kotak 'Saya memilih untuk berkongsi ringkasan sesi ini' di bahagian atas butang Hantar.", "warn");
       return;
     }
     if (privacyIsOn()) {
-      setSaveMessage("Privasi ON masih aktif. Tekan Benarkan penghantaran untuk sesi ini terlebih dahulu.", "warn");
+      setSaveMessage("Belum dihantar: Privasi ON masih aktif. Selepas beri persetujuan, tekan 'Benarkan penghantaran untuk sesi ini', kemudian cuba lagi.", "warn");
       return;
     }
     if (transcriptOptIn?.checked) {
       if (!transcriptReviewed?.checked || !transcriptPreviewSnapshot) {
-        setSaveMessage("Untuk kongsi perbualan penuh, buka Pratonton dan tandakan persetujuan tambahan selepas membacanya.", "warn");
+        setSaveMessage("Belum dihantar: jika memilih 'Kongsi perbualan penuh', tekan 'Pratonton perbualan', semak mesej, kemudian tanda kotak persetujuan tambahan. Jika hanya mahu kongsi Rumusan, nyah tanda Kongsi perbualan penuh.", "warn");
         return;
       }
     }
@@ -1020,8 +1035,19 @@
       setSaveMessage(`Berjaya dihantar untuk semakan GBK. Kod rujukan murid: ${code}. Simpan kod ini jika guru memerlukannya.`, "success");
     } catch (error) {
       // Never log the pupil's answers or record content.
-      console.error("Kawan CBT: penghantaran gagal.", { code: error?.code, message: error?.message });
-      setSaveMessage("Penghantaran gagal. Semak internet dan pastikan SQL student_submissions telah dijalankan. Rekod tidak disimpan secara setempat.", "danger");
+      // Error codes are safe to share; never print submitted pupil answers or
+      // server errors that might echo sensitive user-supplied values.
+      const code = typeof error?.code === "string" && /^[A-Za-z0-9_]{1,20}$/.test(error.code)
+        ? error.code : "NETWORK";
+      console.warn("Kawan CBT: student submission rejected", { code });
+      const advice = code === "42501"
+        ? "Supabase menolak akses menulis. GBK perlu semak RLS dan kebenaran INSERT pada student_submissions."
+        : (code === "PGRST204" || code === "PGRST205" || code === "42703")
+        ? "Struktur jadual / skema Supabase belum sepadan dengan versi laman."
+        : (code === "23514" || code === "23502" || code === "22001")
+        ? "Ada data tidak memenuhi syarat pangkalan data. GBK perlu semak validasi dan panjang medan."
+        : "Semak rangkaian dan kebenaran jadual bersama GBK.";
+      setSaveMessage(`Penghantaran GAGAL (kod ${code}). ${advice} Tiada rekod baharu disimpan.`, "danger");
       saveRecordBtn.textContent = "📨 Hantar kepada GBK";
       saveRecordBtn.disabled = false;
     }

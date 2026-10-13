@@ -107,3 +107,29 @@ body.dark .recordOpenBtn { color: var(--ink-soft); }
 .gbkAccountLabel { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 @media(max-width:540px) { .gbkAuthCard { padding: 18px; } .gbkAuthForm .btn { width: 100%; } }
 body.dark .gbkAuthSetup { color: #f0dbad; background: #3d3627; border-color: #69572f; }
+
+
+/* 5.2.1: action feedback must stay visible after the pupil taps Hantar. */
+#summaryModal #saveRecordMessage[hidden] { display: none !important; }
+#summaryModal #saveRecordMessage {
+  flex: 0 0 100%; width: 100%;
+  padding: 12px 16px; margin: 12px 0 0;
+  border-radius: 15px; border: 1.5px solid #a6cde0;
+  background: #e9f5fe; color: #235875; font-weight: 800;
+  font-size: 15px; line-height: 1.65; overflow-wrap: anywhere;
+}
+#summaryModal #saveRecordMessage[data-kind="warn"] {
+  border-color: #e5c17d; background: #fff4d9; color: #70501b;
+}
+#summaryModal #saveRecordMessage[data-kind="danger"] {
+  border-color: #e8b6b6; background: #fff0f0; color: #a42635;
+}
+#summaryModal #saveRecordMessage[data-kind="success"] {
+  border-color: #9bd8b5; background: #e7f8ee; color: #17643d;
+}
+#summaryModal #saveRecordBtn:focus-visible {
+  outline: 3px solid #4d98ba; outline-offset: 4px;
+}
+body.dark #summaryModal #saveRecordMessage[data-kind="warn"] { background:#453920; color:#ffe4af; }
+body.dark #summaryModal #saveRecordMessage[data-kind="danger"] { background:#472d35; color:#ffc3c9; }
+body.dark #summaryModal #saveRecordMessage[data-kind="success"] { background:#203b30; color:#c0f3d9; }
